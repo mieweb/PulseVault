@@ -1,7 +1,7 @@
 {
-  "name": "d",
+  "name": "pulsevault",
   "version": "1.0.0",
-  "description": "This project was bootstrapped with Fastify-CLI.",
+  "description": "HIPAA-compliant video storage and delivery backend with resumable uploads, adaptive transcoding, and secure media serving",
   "main": "app.js",
   "directories": {
     "test": "test"
@@ -9,17 +9,28 @@
   "scripts": {
     "test": "node --test test/**/*.test.js",
     "start": "fastify start -l info app.js",
-    "dev": "fastify start -w -l info -P app.js"
+    "dev": "fastify start -w -l info -P app.js",
+    "worker": "node workers/transcode-worker.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["video", "transcoding", "hls", "dash", "hipaa", "tus", "upload", "fastify"],
+  "author": "MIE Web",
+  "license": "SEE LICENSE FILE",
   "dependencies": {
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.0.0",
     "@fastify/autoload": "^6.0.0",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/multipart": "^9.2.1",
     "@fastify/sensible": "^6.0.0",
-    "fastify-cli": "^7.4.0"
-  },
-  "devDependencies": {}
+    "@fastify/static": "^8.2.0",
+    "@tus/file-store": "^2.0.0",
+    "@tus/server": "^2.3.0",
+    "dotenv": "^17.2.3",
+    "fast-json-stable-stringify": "^2.1.0",
+    "fastify": "^5.0.0",
+    "fastify-cli": "^7.4.0",
+    "fastify-plugin": "^5.0.0",
+    "ioredis": "^5.8.1",
+    "prom-client": "^15.1.3",
+    "redis": "^5.8.3",
+    "uuid": "^13.0.0"
+  }
 }
