@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+# Install FFmpeg and ffprobe
+RUN apk add --no-cache ffmpeg
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY lib ./lib
+COPY workers ./workers
+
+# Create media directories
+RUN mkdir -p /media/uploads /media/videos /media/audit
+
+# Run the worker
+CMD ["node", "workers/transcode-worker.js"]
