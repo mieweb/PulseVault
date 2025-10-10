@@ -70,6 +70,54 @@ v
 
 ##  Stack Details
 
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant Pulse as 📷 **Pulse (Camera App)**
+    participant Nginx as 🌐 **Nginx Reverse Proxy**
+    participant Vitals as 💻 **Vitals (Next.js PWA Frontend)**
+    participant PulseVault as 🩸 **PulseVault (Fastify + tus-node-server)**
+    participant Redis as 💡 **Redis Queue**
+    participant Transcoder as ⚙️ **Transcoder Worker (FFmpeg + Shaka Packager)**
+    participant Storage as 💾 **Encrypted Storage (/mnt/media)**
+    participant Database as 🗃️ **Optional Mirror DB (DuckDB / Postgres / MariaDB)**
+    participant Observability as 📊 **Observability Stack (Prometheus + Loki + Tempo)**
+
+    %% --- Upload Phase ---
+    Pulse->>+Nginx: Initiate resumable upload (tus protocol)
+    Nginx->>+PulseVault: Proxy POST /uploads
+    PulseVault->>Storage: Write upload chunk to /mnt/media/uploads
+    PulseVault-->>Pulse: 204 No Content (chunk acknowledged)
+    Pulse->>+PulseVault: POST /uploads/finalize
+    PulseVault->>Storage: Move file → /videos/<uuid>/original.mp4
+    PulseVault->>Storage: Write meta.tmp.json → meta.json (atomic fsync)
+    PulseVault->>Redis: Enqueue "transcode" job
+    PulseVault->>Observability: Log upload audit + metrics
+    deactivate PulseVault
+
+    %% --- Transcode Phase ---
+    Redis->>+Transcoder: Worker consumes "transcode" job
+    Transcoder->>Storage: Read original.mp4
+    Transcoder->>Storage: Write HLS/DASH renditions (240p–1080p)
+    Transcoder->>Storage: Update meta.json (duration, renditions)
+    Transcoder->>Database: (Optional) Mirror metadata
+    Transcoder->>Observability: Emit metrics and logs
+    deactivate Transcoder
+
+    %% --- Playback Phase ---
+    Vitals->>+Nginx: Request /media/videos/<uuid>/hls/playlist.m3u8
+    Nginx->>+PulseVault: Validate signed HMAC token (≤300s expiry)
+    PulseVault->>Storage: Stream byte ranges (206 Partial Content)
+    PulseVault->>Observability: Log access audit + metrics
+    deactivate PulseVault
+    Vitals-->>Vitals: Autoplay adaptive HLS/DASH feed
+
+    %% --- Observability & Retention ---
+    Note over Observability,Storage: Hash-chained daily audit logs<br/>Optional MinIO Object Lock replication for immutability
+```
+
+
 ### PulseVault (Backend)
 - **Server:** Fastify + TypeScript
 - **Uploads:** tus-node-server
