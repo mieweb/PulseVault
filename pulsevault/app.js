@@ -4,7 +4,9 @@ const path = require('node:path')
 const AutoLoad = require('@fastify/autoload')
 
 // Pass --options via CLI arguments in command to enable these options.
-const options = {}
+const options = {
+  bodyLimit: 2147483647
+}
 
 module.exports = async function (fastify, opts) {
   // Place here your custom code!

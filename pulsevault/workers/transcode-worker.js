@@ -2,6 +2,7 @@
 
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 const { spawn } = require('node:child_process')
 const Redis = require('ioredis')
 const MetadataWriter = require('../lib/metadata-writer')
@@ -119,8 +120,12 @@ class TranscodeWorker {
    */
   async getVideoInfo(filePath) {
     return new Promise((resolve, reject) => {
+      if (!fs.existsSync(filePath)) {
+        return reject(new Error(`Video file not found: ${filePath}`))
+      }
+
       const ffprobe = spawn('ffprobe', [
-        '-v', 'quiet',
+        '-v', 'error',
         '-print_format', 'json',
         '-show_format',
         '-show_streams',
@@ -128,13 +133,20 @@ class TranscodeWorker {
       ])
 
       let output = ''
+      let errorOutput = ''
+      
       ffprobe.stdout.on('data', (data) => {
         output += data.toString()
       })
 
+      ffprobe.stderr.on('data', (data) => {
+        errorOutput += data.toString()
+      })
+
       ffprobe.on('close', (code) => {
         if (code !== 0) {
-          return reject(new Error(`ffprobe exited with code ${code}`))
+          const errorMsg = errorOutput || `ffprobe exited with code ${code}`
+          return reject(new Error(`ffprobe failed: ${errorMsg}`))
         }
 
         try {
@@ -149,7 +161,7 @@ class TranscodeWorker {
             bitrate: parseInt(info.format.bit_rate)
           })
         } catch (err) {
-          reject(err)
+          reject(new Error(`Failed to parse ffprobe output: ${err.message}. Output: ${output}`))
         }
       })
     })
@@ -270,11 +282,37 @@ class TranscodeWorker {
   }
 }
 
-// Run worker if executed directly
 if (require.main === module) {
+  let mediaRoot = process.env.MEDIA_ROOT || '/mnt/media'
+  let videoDir = process.env.VIDEO_DIR || path.join(mediaRoot, 'videos')
+  let auditDir = process.env.AUDIT_DIR || path.join(mediaRoot, 'audit')
+
+  if (process.env.NODE_ENV !== 'production' && mediaRoot === '/mnt/media') {
+    try {
+      if (!fs.existsSync(mediaRoot)) {
+        throw new Error('Directory does not exist')
+      }
+      fs.accessSync(mediaRoot, fs.constants.W_OK)
+    } catch (err) {
+      if (err.code === 'EACCES' || err.code === 'ENOENT' || err.message === 'Directory does not exist') {
+        const tempBase = path.join(os.tmpdir(), 'pulsevault-test')
+        mediaRoot = tempBase
+        videoDir = path.join(tempBase, 'videos')
+        auditDir = path.join(tempBase, 'audit')
+        console.log(`Using temp directory: ${tempBase}`)
+        
+        for (const dir of [mediaRoot, videoDir, auditDir]) {
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true, mode: 0o750 })
+          }
+        }
+      }
+    }
+  }
+
   const config = {
-    videoDir: process.env.VIDEO_DIR || '/mnt/media/videos',
-    auditDir: process.env.AUDIT_DIR || '/mnt/media/audit',
+    videoDir,
+    auditDir,
     redis: {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379', 10),

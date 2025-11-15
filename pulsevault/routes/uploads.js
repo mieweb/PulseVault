@@ -8,6 +8,10 @@ const { v4: uuidv4 } = require('uuid')
 const MetadataWriter = require('../lib/metadata-writer')
 
 module.exports = async function (fastify, opts) {
+  fastify.addContentTypeParser('application/offset+octet-stream', (request, payload, done) => {
+    done(null)
+  })
+
   // Initialize tus server for resumable uploads
   const tusServer = new Server({
     path: '/uploads',
@@ -17,17 +21,23 @@ module.exports = async function (fastify, opts) {
       return uuidv4()
     },
     onUploadFinish: async (req, res, upload) => {
-      fastify.log.info({ uploadId: upload.id, size: upload.size }, 'Upload completed')
+      if (upload && upload.id) {
+        fastify.log.info({ uploadId: upload.id, size: upload.size }, 'Upload completed')
+      } else {
+        fastify.log.warn('Upload finished but upload object is missing or invalid')
+      }
     }
   })
 
   // Handle all tus protocol methods
   fastify.all('/uploads', async (request, reply) => {
-    return tusServer.handle(request.raw, reply.raw)
+    reply.hijack()
+    await tusServer.handle(request.raw, reply.raw)
   })
 
   fastify.all('/uploads/*', async (request, reply) => {
-    return tusServer.handle(request.raw, reply.raw)
+    reply.hijack()
+    await tusServer.handle(request.raw, reply.raw)
   })
 
   /**
