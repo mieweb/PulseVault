@@ -4,8 +4,15 @@
 set -e
 
 API_BASE="http://localhost:3000"
+
+# Detect temp directory (same logic as server/worker)
+# Use Node.js to get os.tmpdir() which matches what the server uses
+TEMP_BASE=$(node -e "const os = require('os'); console.log(os.tmpdir())" 2>/dev/null || echo "/tmp")
+PULSEVAULT_TEMP_DIR="${TEMP_BASE}/pulsevault-test"
+
 echo "🧪 Testing PulseVault API"
 echo "========================="
+echo "📁 Using temp directory: $PULSEVAULT_TEMP_DIR"
 echo ""
 
 # Test 1: Health Check
@@ -121,10 +128,10 @@ echo "   Video ID: $VIDEO_ID"
 echo "   Response: $FINALIZE_RESPONSE" | jq . 2>/dev/null || echo "$FINALIZE_RESPONSE"
 echo ""
 
-# Test 6: Check if file exists (check both possible locations)
+# Test 6: Check if file exists (check detected temp dir and fallback locations)
 echo "6️⃣  Verifying file storage..."
 VIDEO_PATH=""
-for path in "/tmp/pulsevault-test/videos/$VIDEO_ID" "/tmp/pulsevault/videos/$VIDEO_ID"; do
+for path in "$PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID" "/tmp/pulsevault-test/videos/$VIDEO_ID" "/tmp/pulsevault/videos/$VIDEO_ID"; do
   if [ -f "$path/original.mp4" ]; then
     VIDEO_PATH="$path"
     break
@@ -139,19 +146,19 @@ if [ -n "$VIDEO_PATH" ]; then
     cat "$VIDEO_PATH/meta.json" | jq . 2>/dev/null || cat "$VIDEO_PATH/meta.json"
   fi
 else
-  echo "   ⚠️  File not found (checking both /tmp/pulsevault-test and /tmp/pulsevault)"
+  echo "   ⚠️  File not found (checked: $PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID)"
   echo "   This is normal if worker hasn't processed yet or uses different path"
 fi
 echo ""
 
-# Test 7: Wait for transcoding (check status - check both locations)
+# Test 7: Wait for transcoding (check status - check detected temp dir and fallback locations)
 echo "7️⃣  Waiting for transcoding (checking every 2 seconds)..."
 MAX_WAIT=30
 WAITED=0
 META_FILE=""
 while [ $WAITED -lt $MAX_WAIT ]; do
-  # Check both possible locations
-  for path in "/tmp/pulsevault-test/videos/$VIDEO_ID/meta.json" "/tmp/pulsevault/videos/$VIDEO_ID/meta.json"; do
+  # Check detected temp dir first, then fallback locations
+  for path in "$PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID/meta.json" "/tmp/pulsevault-test/videos/$VIDEO_ID/meta.json" "/tmp/pulsevault/videos/$VIDEO_ID/meta.json"; do
     if [ -f "$path" ]; then
       META_FILE="$path"
       break
@@ -200,9 +207,9 @@ else
 fi
 echo ""
 
-# Test 9: Try to stream (if transcoded - check both locations)
+# Test 9: Try to stream (if transcoded - check detected temp dir and fallback locations)
 HLS_FILE=""
-for path in "/tmp/pulsevault-test/videos/$VIDEO_ID/hls/master.m3u8" "/tmp/pulsevault/videos/$VIDEO_ID/hls/master.m3u8"; do
+for path in "$PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID/hls/master.m3u8" "/tmp/pulsevault-test/videos/$VIDEO_ID/hls/master.m3u8" "/tmp/pulsevault/videos/$VIDEO_ID/hls/master.m3u8"; do
   if [ -f "$path" ]; then
     HLS_FILE="$path"
     VIDEO_PATH=$(dirname $(dirname "$path"))
@@ -223,6 +230,7 @@ if [ -n "$HLS_FILE" ]; then
   fi
 else
   echo "9️⃣  Skipping streaming test (HLS files not found)"
+  echo "   Checked: $PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID/hls/master.m3u8"
   echo "   Checked: /tmp/pulsevault-test/videos/$VIDEO_ID/hls/master.m3u8"
   echo "   Checked: /tmp/pulsevault/videos/$VIDEO_ID/hls/master.m3u8"
 fi
@@ -248,7 +256,7 @@ echo "  • Video ID: $VIDEO_ID"
 if [ -n "$VIDEO_PATH" ]; then
   echo "  • Storage: $VIDEO_PATH/"
 else
-  echo "  • Storage: Check /tmp/pulsevault-test/videos/ or /tmp/pulsevault/videos/"
+  echo "  • Storage: Check $PULSEVAULT_TEMP_DIR/videos/ or /tmp/pulsevault*/videos/"
 fi
 echo ""
 echo "Next steps:"
@@ -256,7 +264,8 @@ echo "  • Check worker logs for transcoding progress"
 if [ -n "$VIDEO_PATH" ]; then
   echo "  • View files: ls -la $VIDEO_PATH/"
 else
+  echo "  • View files: ls -la $PULSEVAULT_TEMP_DIR/videos/$VIDEO_ID/"
   echo "  • View files: ls -la /tmp/pulsevault*/videos/$VIDEO_ID/"
 fi
-  echo "  • Check audit logs: ls -la /tmp/pulsevault-test/audit/"
+echo "  • Check audit logs: ls -la $PULSEVAULT_TEMP_DIR/audit/"
 
