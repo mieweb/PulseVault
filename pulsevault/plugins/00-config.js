@@ -3,6 +3,7 @@
 const fp = require('fastify-plugin')
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 
 /**
  * Configuration plugin for PulseVault
@@ -86,8 +87,8 @@ module.exports = fp(async function (fastify, opts) {
     } catch (err) {
       // In test environments, we may not have permission to create /mnt/media
       // Use a temp directory instead
-      if (err.code === 'EACCES' && config.nodeEnv !== 'production') {
-        const tempBase = path.join('/tmp', 'pulsevault-test')
+      if ((err.code === 'EACCES' || err.code === 'ENOENT') && config.nodeEnv !== 'production') {
+        const tempBase = path.join(os.tmpdir(), 'pulsevault-test')
         config.mediaRoot = tempBase
         config.uploadDir = path.join(tempBase, 'uploads')
         config.videoDir = path.join(tempBase, 'videos')

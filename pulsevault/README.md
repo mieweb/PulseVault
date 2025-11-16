@@ -42,7 +42,7 @@ The API will be available at `http://localhost:3000`
 
 ### Production
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for full deployment instructions including Docker Compose, Nginx, and observability stack.
+See [../SETUP.md](../SETUP.md) for full deployment instructions including Docker Compose, Nginx, and observability stack.
 
 ## API Endpoints
 

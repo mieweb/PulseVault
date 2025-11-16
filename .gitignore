@@ -143,3 +143,10 @@ vite.config.ts.timestamp-*
 pulsevault/mnt/
 pulsevault/.env
 
+# SSL certificates (self-signed, can be regenerated)
+nginx/ssl/
+*.pem
+*.key
+*.crt
+*.cert
+
