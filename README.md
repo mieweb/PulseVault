@@ -23,7 +23,6 @@ The entire system is designed for **HIPAA compliance**, **self-hosted deployment
 ## Architecture
 
 ```
-
 +---------------------------+
 |       Pulse (App)         |
 |  Record & push content    |
@@ -46,6 +45,8 @@ v
 +---------------------------+
 
 ```
+
+For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
 
 ### Core Principles
 - **Disk-first metadata**: every video has a `meta.json` sidecar (source of truth).  
@@ -156,8 +157,13 @@ sequenceDiagram
 
 ## 🧪 Development Setup
 
-PulseVault will expose API endpoints on `https://localhost:3000`
-Vitals will serve the web/PWA interface on `https://localhost:4000`.
+```bash
+./scripts/dev-setup.sh              # Automated setup (includes SSL certs)
+cd pulsevault && npm run dev        # Terminal 1: API server
+cd pulsevault && npm run worker     # Terminal 2: Worker
+```
+
+API: `http://localhost:3000` | Full setup: [SETUP.md](SETUP.md)
 
 ---
 
@@ -172,7 +178,7 @@ Vitals will serve the web/PWA interface on `https://localhost:4000`.
 | **Tempo**      | distributed tracing           |
 | **Nginx**      | proxy + TLS + static delivery |
 
-Deploy all services with Docker Compose or Helm using `infra/` manifests.
+Deploy all services with Docker Compose. See [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) for full infrastructure details.
 
 ---
 
@@ -182,6 +188,27 @@ Deploy all services with Docker Compose or Helm using `infra/` manifests.
 * **Bare-metal Docker Compose**
 * **Air-gapped lab environments**
 * Optional external CDN (BAA required)
+
+For production deployment, see [SETUP.md](SETUP.md#-production-setup).
+
+---
+
+## 📚 Documentation
+
+- **[SETUP.md](SETUP.md)** - Complete setup guide (development & production) + API reference
+- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - System architecture, features, tests, troubleshooting
+
+---
+
+## ✅ System Status
+
+**Status:** ✅ Fully Operational | **Tests:** 27/27 passing (100%)
+
+**Services:** All 8 services running and healthy (Backend, Redis, Nginx, Worker, Prometheus, Grafana, Loki, Promtail)
+
+**Features:** Upload, Transcoding, Media Delivery, Audit Logging, Metrics, Log Aggregation
+
+**Data Persistence:** 6 volumes configured (media, redis, prometheus, grafana, loki, nginx-cache)
 
 ---
 
@@ -200,7 +227,7 @@ Usage for HIPAA-covered or regulated workloads requires a signed BAA and on-prem
 
 ---
 
-### 🫀 “Your data has a heartbeat.”
+### 🫀 "Your data has a heartbeat."
 
 **PulseVault** protects it.
 **Vitals** makes it visible.

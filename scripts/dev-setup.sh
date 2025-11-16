@@ -95,6 +95,31 @@ if [ -z "$SKIP_DOCKER" ]; then
     fi
 fi
 
+# Generate SSL certificates for Docker Compose (optional)
+if [ -z "$SKIP_DOCKER" ]; then
+    echo ""
+    echo "Generating SSL certificates for Docker Compose..."
+    PROJECT_ROOT="$(dirname "$0")/.."
+    SSL_DIR="$PROJECT_ROOT/nginx/ssl"
+    mkdir -p "$SSL_DIR"
+    
+    if [ ! -f "$SSL_DIR/cert.pem" ] || [ ! -f "$SSL_DIR/key.pem" ]; then
+        if command -v openssl &> /dev/null; then
+            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout "$SSL_DIR/key.pem" \
+                -out "$SSL_DIR/cert.pem" \
+                -subj "/CN=localhost" 2>/dev/null
+            chmod 644 "$SSL_DIR/cert.pem" 2>/dev/null || true
+            chmod 600 "$SSL_DIR/key.pem" 2>/dev/null || true
+            echo "✅ SSL certificates generated"
+        else
+            echo "⚠️  OpenSSL not found, skipping SSL certificate generation"
+        fi
+    else
+        echo "✅ SSL certificates already exist"
+    fi
+fi
+
 echo ""
 echo "🎉 Setup complete!"
 echo ""
@@ -110,6 +135,11 @@ echo "  4. Check metrics at http://localhost:3000/metrics"
 echo ""
 echo "Storage location: $STORAGE_BASE"
 echo ""
+if [ -z "$SKIP_DOCKER" ]; then
+    echo "For full Docker Compose stack:"
+    echo "  cd .. && docker-compose up -d"
+    echo ""
+fi
 echo "To stop Redis:"
 echo "  docker stop pulsevault-redis-dev"
 echo "  docker rm pulsevault-redis-dev"
