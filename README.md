@@ -158,7 +158,7 @@ sequenceDiagram
 ## 🧪 Development Setup
 
 ```bash
-./scripts/dev-setup.sh              # Automated setup (includes SSL certs)
+./scripts/setup.sh              # Automated setup (includes SSL certs)
 cd pulsevault && npm run dev        # Terminal 1: API server
 cd pulsevault && npm run worker     # Terminal 2: Worker
 ```
