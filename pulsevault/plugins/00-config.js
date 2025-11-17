@@ -33,6 +33,7 @@ module.exports = fp(async function (fastify, opts) {
     // Security
     hmacSecret: process.env.HMAC_SECRET || 'change-me-in-production',
     tokenExpirySeconds: parseInt(process.env.TOKEN_EXPIRY_SECONDS || '300', 10),
+    requireUploadToken: process.env.REQUIRE_UPLOAD_TOKEN !== 'false', // Default: true (require token)
 
     // Redis
     redis: {

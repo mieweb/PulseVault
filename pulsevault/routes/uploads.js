@@ -43,6 +43,41 @@ module.exports = async function (fastify, opts) {
   /**
    * Finalize upload: move to permanent storage and enqueue transcoding
    */
+  /**
+   * Verify upload token (reuse from qr.js logic)
+   */
+  function verifyUploadToken(token) {
+    if (!token) {
+      return { valid: false, reason: 'No token provided' }
+    }
+    
+    try {
+      const crypto = require('node:crypto')
+      const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf8'))
+      const { signature, ...payload } = decoded
+
+      // Check expiry
+      if (payload.expiresAt && payload.expiresAt < Math.floor(Date.now() / 1000)) {
+        return { valid: false, reason: 'Token expired' }
+      }
+
+      // Verify signature
+      const message = JSON.stringify(payload)
+      const expectedSignature = crypto
+        .createHmac('sha256', fastify.config.hmacSecret)
+        .update(message)
+        .digest('hex')
+
+      if (signature !== expectedSignature) {
+        return { valid: false, reason: 'Invalid signature' }
+      }
+
+      return { valid: true, payload }
+    } catch (err) {
+      return { valid: false, reason: 'Invalid token format' }
+    }
+  }
+
   fastify.post('/uploads/finalize', {
     schema: {
       body: {
@@ -52,12 +87,46 @@ module.exports = async function (fastify, opts) {
           uploadId: { type: 'string' },
           filename: { type: 'string' },
           userId: { type: 'string' },
+          uploadToken: { type: 'string' },
           metadata: { type: 'object' }
         }
       }
     }
   }, async (request, reply) => {
-    const { uploadId, filename, userId, metadata = {} } = request.body
+    const { uploadId, filename, userId, uploadToken, metadata = {} } = request.body
+    
+    // Get token from body or header (header takes precedence)
+    const token = uploadToken || request.headers['x-upload-token']
+    
+    // Require upload token (unless disabled in config for development)
+    if (fastify.config.requireUploadToken && !token) {
+      fastify.log.warn({ uploadId }, 'Upload rejected: token required')
+      return reply.code(401).send({
+        error: 'Upload token required',
+        reason: 'Only authenticated uploads are allowed. Please scan a QR code to get an upload token.'
+      })
+    }
+    
+    // Validate upload token
+    let tokenPayload = null
+    if (token) {
+      const tokenVerification = verifyUploadToken(token)
+      if (!tokenVerification.valid) {
+        fastify.log.warn({ uploadId, reason: tokenVerification.reason }, 'Invalid upload token')
+        return reply.code(401).send({
+          error: 'Invalid upload token',
+          reason: tokenVerification.reason
+        })
+      }
+      tokenPayload = tokenVerification.payload
+      fastify.log.info({ uploadId, tokenId: tokenPayload.tokenId, userId: tokenPayload.userId }, 'Upload token validated')
+    } else if (!fastify.config.requireUploadToken) {
+      fastify.log.warn({ uploadId }, 'Upload finalized without token (token requirement disabled)')
+    }
+    
+    // Use userId from token if available, otherwise use provided userId or default
+    const finalUserId = tokenPayload?.userId || userId || 'anonymous'
+    const organizationId = tokenPayload?.organizationId || null
 
     // Generate UUID for video
     const videoId = uuidv4()
@@ -87,11 +156,15 @@ module.exports = async function (fastify, opts) {
     const videoMetadata = {
       videoId,
       filename,
-      userId: userId || 'anonymous',
+      userId: finalUserId,
+      organizationId,
       originalSize: fileSize,
       originalChecksum: checksum,
       uploadedAt: new Date().toISOString(),
       status: 'uploaded',
+      // Security metadata
+      authenticated: !!tokenPayload,
+      tokenId: tokenPayload?.tokenId || null,
       ...metadata
     }
 
@@ -103,7 +176,10 @@ module.exports = async function (fastify, opts) {
 
     // Log upload event
     const auditLogger = fastify.auditLogger
-    await auditLogger.logUpload(videoId, userId, fileSize, checksum)
+    await auditLogger.logUpload(videoId, finalUserId, fileSize, checksum, {
+      authenticated: !!tokenPayload,
+      organizationId
+    })
 
     // Enqueue transcoding job if enabled
     if (fastify.config.transcoding.enabled) {
