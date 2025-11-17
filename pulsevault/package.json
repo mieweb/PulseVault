@@ -12,7 +12,16 @@
     "dev": "fastify start -w -l info -P app.js",
     "worker": "node workers/transcode-worker.js"
   },
-  "keywords": ["video", "transcoding", "hls", "dash", "hipaa", "tus", "upload", "fastify"],
+  "keywords": [
+    "video",
+    "transcoding",
+    "hls",
+    "dash",
+    "hipaa",
+    "tus",
+    "upload",
+    "fastify"
+  ],
   "author": "MIE Web",
   "license": "SEE LICENSE FILE",
   "dependencies": {
@@ -30,6 +39,7 @@
     "fastify-plugin": "^5.0.0",
     "ioredis": "^5.8.1",
     "prom-client": "^15.1.3",
+    "qrcode": "^1.5.4",
     "redis": "^5.8.3",
     "uuid": "^13.0.0"
   }
