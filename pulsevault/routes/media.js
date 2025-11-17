@@ -77,6 +77,73 @@ module.exports = async function (fastify, opts) {
   }
 
   /**
+   * Generate token for a media path
+   */
+  function generateTokenForPath(videoId, mediaPath, expiresIn = 300) {
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresIn
+    const message = `${videoId}:${mediaPath}:${expiresAt}`
+    const signature = crypto
+      .createHmac('sha256', fastify.config.hmacSecret)
+      .update(message)
+      .digest('hex')
+    return `${expiresAt}.${signature}`
+  }
+
+  /**
+   * Rewrite master.m3u8 to include tokens in all URLs
+   */
+  async function rewriteMasterPlaylist(videoId, masterContent, baseUrl) {
+    const lines = masterContent.split('\n')
+    const rewritten = []
+    const expiresIn = fastify.config.tokenExpirySeconds || 300
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // If this is a rendition playlist line (not a tag)
+      if (line && !line.startsWith('#') && line.trim()) {
+        const renditionPath = line.trim()
+        const fullPath = `hls/${renditionPath}`
+        const token = generateTokenForPath(videoId, fullPath, expiresIn)
+        rewritten.push(`${baseUrl}/media/videos/${videoId}/${fullPath}?token=${token}`)
+      } else {
+        rewritten.push(line)
+      }
+    }
+
+    return rewritten.join('\n')
+  }
+
+  /**
+   * Rewrite rendition playlist (.m3u8) to include tokens in segment URLs
+   */
+  async function rewriteRenditionPlaylist(videoId, renditionPath, playlistContent, baseUrl) {
+    const lines = playlistContent.split('\n')
+    const rewritten = []
+    const expiresIn = fastify.config.tokenExpirySeconds || 300
+    
+    // Extract rendition name from path (e.g., "hls/240p.m3u8" -> "240p")
+    const renditionName = path.basename(renditionPath, '.m3u8')
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // If this is a segment file line (.ts)
+      if (line && !line.startsWith('#') && line.trim() && line.includes('.ts')) {
+        const segmentName = line.trim()
+        // Segment files are in the same directory as the playlist (hls/)
+        const segmentPath = `hls/${segmentName}`
+        const token = generateTokenForPath(videoId, segmentPath, expiresIn)
+        rewritten.push(`${baseUrl}/media/videos/${videoId}/${segmentPath}?token=${token}`)
+      } else {
+        rewritten.push(line)
+      }
+    }
+
+    return rewritten.join('\n')
+  }
+
+  /**
    * Serve media files with range request support
    */
   fastify.get('/media/videos/:videoId/*', async (request, reply) => {
@@ -87,6 +154,7 @@ module.exports = async function (fastify, opts) {
     // Verify token
     const tokenCheck = verifyToken(videoId, mediaPath, token)
     if (!tokenCheck.valid) {
+      fastify.log.warn({ videoId, mediaPath, reason: tokenCheck.reason }, 'Token verification failed')
       return reply.unauthorized(tokenCheck.reason)
     }
 
@@ -112,10 +180,41 @@ module.exports = async function (fastify, opts) {
     const ip = request.ip
     const userAgent = request.headers['user-agent']
 
-    // Log access
-    await fastify.auditLogger.logAccess(videoId, userId, ip, userAgent)
+    // Log access (non-blocking - don't await to avoid closing stream prematurely)
+    fastify.auditLogger.logAccess(videoId, userId, ip, userAgent).catch(err => {
+      fastify.log.error({ err }, 'Failed to log access')
+    })
 
-    // Handle range requests (for video seeking)
+    // Get base URL for rewriting playlists
+    const protocol = request.headers['x-forwarded-proto'] || (request.protocol || 'http')
+    const host = request.headers['x-forwarded-host'] || request.headers.host || 'localhost:3000'
+    const baseUrl = `${protocol}://${host}`
+
+    // Handle master.m3u8 - rewrite URLs to include tokens
+    if (mediaPath === 'hls/master.m3u8') {
+      const masterContent = await fs.promises.readFile(filePath, 'utf8')
+      const rewritten = await rewriteMasterPlaylist(videoId, masterContent, baseUrl)
+      
+      reply
+        .header('Content-Type', 'application/vnd.apple.mpegurl')
+        .header('Cache-Control', 'private, max-age=60') // Short cache for dynamic content
+        .send(rewritten)
+      return
+    }
+
+    // Handle rendition playlists (.m3u8 files in hls directory)
+    if (mediaPath.startsWith('hls/') && mediaPath.endsWith('.m3u8') && mediaPath !== 'hls/master.m3u8') {
+      const playlistContent = await fs.promises.readFile(filePath, 'utf8')
+      const rewritten = await rewriteRenditionPlaylist(videoId, mediaPath, playlistContent, baseUrl)
+      
+      reply
+        .header('Content-Type', 'application/vnd.apple.mpegurl')
+        .header('Cache-Control', 'private, max-age=60') // Short cache for dynamic content
+        .send(rewritten)
+      return
+    }
+
+    // Handle range requests (for video seeking) - for .ts segments and other files
     const range = request.headers.range
 
     if (range) {
@@ -129,26 +228,35 @@ module.exports = async function (fastify, opts) {
         return reply.send()
       }
 
-      const stream = fs.createReadStream(filePath, { start, end })
-
-      reply
-        .status(206)
-        .header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
-        .header('Accept-Ranges', 'bytes')
-        .header('Content-Length', chunkSize)
-        .header('Content-Type', getContentType(filePath))
-        .header('Cache-Control', 'private, max-age=3600')
-        .send(stream)
+      // Use streams for range requests (original approach)
+      try {
+        const stream = fs.createReadStream(filePath, { start, end })
+        return reply
+          .status(206)
+          .header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+          .header('Content-Length', chunkSize)
+          .header('Accept-Ranges', 'bytes')
+          .header('Content-Type', getContentType(filePath))
+          .header('Cache-Control', 'private, max-age=3600')
+          .send(stream)
+      } catch (err) {
+        fastify.log.error({ err, filePath }, 'Error reading file chunk')
+        return reply.internalServerError('Failed to read media file')
+      }
     } else {
-      // Send entire file
-      const stream = fs.createReadStream(filePath)
-
-      reply
-        .header('Content-Length', fileSize)
-        .header('Content-Type', getContentType(filePath))
-        .header('Accept-Ranges', 'bytes')
-        .header('Cache-Control', 'private, max-age=3600')
-        .send(stream)
+      // Send entire file using streams (original approach)
+      try {
+        const stream = fs.createReadStream(filePath)
+        return reply
+          .header('Content-Type', getContentType(filePath))
+          .header('Content-Length', fileSize)
+          .header('Accept-Ranges', 'bytes')
+          .header('Cache-Control', 'private, max-age=3600')
+          .send(stream)
+      } catch (err) {
+        fastify.log.error({ err, filePath }, 'Error reading file')
+        return reply.internalServerError('Failed to read media file')
+      }
     }
   })
 
