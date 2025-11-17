@@ -191,11 +191,9 @@ class TranscodeWorker {
     const renditions = []
 
     const configs = {
-      '240p': { height: 240, bitrate: '400k', audioBitrate: '64k' },
-      '360p': { height: 360, bitrate: '800k', audioBitrate: '96k' },
-      '480p': { height: 480, bitrate: '1400k', audioBitrate: '128k' },
       '720p': { height: 720, bitrate: '2800k', audioBitrate: '128k' },
-      '1080p': { height: 1080, bitrate: '5000k', audioBitrate: '192k' }
+      '1080p': { height: 1080, bitrate: '5000k', audioBitrate: '192k' },
+      '1440p': { height: 1440, bitrate: '8000k', audioBitrate: '192k' }
     }
 
     // Only create renditions that make sense for the source
@@ -205,9 +203,9 @@ class TranscodeWorker {
       }
     }
 
-    // Ensure at least one rendition
+    // Ensure at least one rendition (fallback to 720p)
     if (renditions.length === 0) {
-      renditions.push({ name: '240p', ...configs['240p'] })
+      renditions.push({ name: '720p', ...configs['720p'] })
     }
 
     return renditions
