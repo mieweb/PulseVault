@@ -190,22 +190,55 @@ class TranscodeWorker {
     const sourceHeight = videoInfo.height
     const renditions = []
 
-    const configs = {
+    // All available rendition configurations
+    const allConfigs = {
+      '240p': { height: 240, bitrate: '400k', audioBitrate: '64k' },
+      '360p': { height: 360, bitrate: '800k', audioBitrate: '96k' },
+      '480p': { height: 480, bitrate: '1400k', audioBitrate: '128k' },
       '720p': { height: 720, bitrate: '2800k', audioBitrate: '128k' },
       '1080p': { height: 1080, bitrate: '5000k', audioBitrate: '192k' },
-      '1440p': { height: 1440, bitrate: '8000k', audioBitrate: '192k' }
+      '1440p': { height: 1440, bitrate: '8000k', audioBitrate: '192k' },
+      '2160p': { height: 2160, bitrate: '15000k', audioBitrate: '192k' }
+    }
+
+    // Get requested renditions from env var or use default 3 resolutions
+    const requestedRenditions = process.env.RENDITIONS 
+      ? process.env.RENDITIONS.split(',').map(r => r.trim())
+      : ['480p', '720p', '1080p'] // Default: 3 resolutions
+
+    // Build configs for requested renditions
+    const configs = {}
+    for (const name of requestedRenditions) {
+      if (allConfigs[name]) {
+        configs[name] = allConfigs[name]
+      } else {
+        console.warn(`Unknown rendition: ${name}, skipping`)
+      }
     }
 
     // Only create renditions that make sense for the source
-    for (const [name, config] of Object.entries(configs)) {
+    // Sort by height (ascending) to ensure proper ordering
+    const sortedConfigs = Object.entries(configs).sort((a, b) => a[1].height - b[1].height)
+    
+    for (const [name, config] of sortedConfigs) {
       if (config.height <= sourceHeight) {
         renditions.push({ name, ...config })
       }
     }
 
-    // Ensure at least one rendition (fallback to 720p)
+    // Ensure at least one rendition (fallback to highest available that fits)
     if (renditions.length === 0) {
-      renditions.push({ name: '720p', ...configs['720p'] })
+      // Find the highest resolution that fits
+      const fallback = sortedConfigs
+        .filter(([_, config]) => config.height <= sourceHeight)
+        .pop()
+      
+      if (fallback) {
+        renditions.push({ name: fallback[0], ...fallback[1] })
+      } else {
+        // Last resort: use 720p
+        renditions.push({ name: '720p', ...allConfigs['720p'] })
+      }
     }
 
     return renditions

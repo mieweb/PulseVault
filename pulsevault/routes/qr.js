@@ -151,8 +151,9 @@ module.exports = async function (fastify, opts) {
     })
     
     // Build secure deeplink URL
-    // Format: pulsecam://upload?server=<server_url>&token=<signed_token>
+    // Format: pulsecam://?mode=upload&server=<server_url>&token=<signed_token>
     const params = new URLSearchParams({
+      mode: 'upload',
       server: serverUrl,
       token: tokenData.token
     })
@@ -161,7 +162,7 @@ module.exports = async function (fastify, opts) {
       params.set('draftId', draftId)
     }
     
-    const deeplinkUrl = `pulsecam://upload?${params.toString()}`
+    const deeplinkUrl = `pulsecam://?${params.toString()}`
     
     return {
       deeplink: deeplinkUrl,
@@ -245,6 +246,7 @@ module.exports = async function (fastify, opts) {
     
     // Build secure deeplink URL
     const params = new URLSearchParams({
+      mode: 'upload',
       server: serverUrl,
       token: tokenData.token
     })
@@ -253,7 +255,7 @@ module.exports = async function (fastify, opts) {
       params.set('draftId', draftId)
     }
     
-    const deeplinkUrl = `pulsecam://upload?${params.toString()}`
+    const deeplinkUrl = `pulsecam://?${params.toString()}`
     
     // Try to use qrcode package if available
     try {
