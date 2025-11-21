@@ -240,6 +240,29 @@ echo ""
 echo "8️⃣  Loki Log Aggregation"
 echo "────────────────────────"
 
+# Wait for Loki to be ready (with retries)
+echo -n "   Waiting for Loki to be ready... "
+MAX_RETRIES=10
+RETRY_COUNT=0
+LOKI_READY=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$LOKI_BASE/ready" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ]; then
+        LOKI_READY=1
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    sleep 2
+done
+
+if [ "$LOKI_READY" = "1" ]; then
+    echo "✅"
+    PASSED=$((PASSED + 1))
+else
+    echo "⚠️  (Loki not ready after $MAX_RETRIES attempts)"
+fi
+
 test_endpoint "Loki health" "GET" "$LOKI_BASE/ready" "200"
 test_endpoint "Loki API" "GET" "$LOKI_BASE/loki/api/v1/labels" "200"
 echo ""
@@ -394,13 +417,13 @@ echo ""
 echo "1️⃣4️⃣  Storage & Permissions"
 echo "───────────────────────────"
 
-# Check storage directories
-for dir in "$PULSEVAULT_TEMP_DIR/uploads" "$PULSEVAULT_TEMP_DIR/videos" "$PULSEVAULT_TEMP_DIR/audit"; do
-    if [ -d "$dir" ]; then
-        echo "   ✅ $(basename "$dir") directory exists"
+# Check storage directories inside Docker container
+for dir in "/media/uploads" "/media/videos" "/media/audit"; do
+    if docker compose exec -T pulsevault test -d "$dir" 2>/dev/null; then
+        echo "   ✅ $(basename "$dir") directory exists (in Docker)"
         PASSED=$((PASSED + 1))
     else
-        echo "   ❌ $(basename "$dir") directory missing"
+        echo "   ❌ $(basename "$dir") directory missing (in Docker)"
         FAILED=$((FAILED + 1))
     fi
 done

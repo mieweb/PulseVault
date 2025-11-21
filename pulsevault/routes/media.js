@@ -198,6 +198,9 @@ module.exports = async function (fastify, opts) {
       reply
         .header('Content-Type', 'application/vnd.apple.mpegurl')
         .header('Cache-Control', 'private, max-age=60') // Short cache for dynamic content
+        .header('Access-Control-Allow-Origin', '*')
+        .header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+        .header('Access-Control-Allow-Headers', 'Range')
         .send(rewritten)
       return
     }
@@ -210,6 +213,9 @@ module.exports = async function (fastify, opts) {
       reply
         .header('Content-Type', 'application/vnd.apple.mpegurl')
         .header('Cache-Control', 'private, max-age=60') // Short cache for dynamic content
+        .header('Access-Control-Allow-Origin', '*')
+        .header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+        .header('Access-Control-Allow-Headers', 'Range')
         .send(rewritten)
       return
     }
@@ -238,6 +244,9 @@ module.exports = async function (fastify, opts) {
           .header('Accept-Ranges', 'bytes')
           .header('Content-Type', getContentType(filePath))
           .header('Cache-Control', 'private, max-age=3600')
+          .header('Access-Control-Allow-Origin', '*')
+          .header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+          .header('Access-Control-Allow-Headers', 'Range')
           .send(stream)
       } catch (err) {
         fastify.log.error({ err, filePath }, 'Error reading file chunk')
@@ -252,6 +261,9 @@ module.exports = async function (fastify, opts) {
           .header('Content-Length', fileSize)
           .header('Accept-Ranges', 'bytes')
           .header('Cache-Control', 'private, max-age=3600')
+          .header('Access-Control-Allow-Origin', '*')
+          .header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+          .header('Access-Control-Allow-Headers', 'Range')
           .send(stream)
       } catch (err) {
         fastify.log.error({ err, filePath }, 'Error reading file')

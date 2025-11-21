@@ -70,6 +70,7 @@ services:
       - AUDIT_DIR=/media/audit
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - RENDITIONS=720p,1080p,1440p
     volumes:
       - media-storage:/media
     depends_on:
@@ -144,6 +145,12 @@ services:
       - loki-data:/loki
       - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
     command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # Promtail for log collection
   promtail:
@@ -156,7 +163,8 @@ services:
       - media-storage:/media:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
-      - loki
+      loki:
+        condition: service_healthy
 
 volumes:
   # Media storage - videos, uploads, audit logs (CRITICAL)

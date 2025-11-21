@@ -109,15 +109,44 @@ else
 fi
 echo ""
 
+# Test 4.5: Get upload token from QR endpoint
+echo "4️⃣.5️⃣  Getting upload token..."
+QR_RESPONSE=$(curl -s "$API_BASE/qr/deeplink?server=$API_BASE&userId=test-user")
+
+# Try to extract token using jq if available, otherwise use grep
+if command -v jq >/dev/null 2>&1; then
+  UPLOAD_TOKEN=$(echo "$QR_RESPONSE" | jq -r '.token // empty' 2>/dev/null)
+else
+  UPLOAD_TOKEN=$(echo "$QR_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+fi
+
+if [ -z "$UPLOAD_TOKEN" ] || [ "$UPLOAD_TOKEN" = "null" ]; then
+  echo "   ⚠️  Failed to get token from QR endpoint"
+  echo "   Response: $QR_RESPONSE"
+  UPLOAD_TOKEN=""
+else
+  echo "   ✅ Upload token obtained"
+fi
+echo ""
+
 # Test 5: Finalize upload
 echo "5️⃣  Finalizing upload..."
+FINALIZE_BODY="{
+  \"uploadId\": \"$UPLOAD_ID\",
+  \"filename\": \"test-video.mp4\",
+  \"userId\": \"test-user\""
+
+if [ -n "$UPLOAD_TOKEN" ]; then
+  FINALIZE_BODY="$FINALIZE_BODY,
+  \"uploadToken\": \"$UPLOAD_TOKEN\""
+fi
+
+FINALIZE_BODY="$FINALIZE_BODY
+}"
+
 FINALIZE_RESPONSE=$(curl -s -X POST "$API_BASE/uploads/finalize" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"uploadId\": \"$UPLOAD_ID\",
-    \"filename\": \"test-video.mp4\",
-    \"userId\": \"test-user\"
-  }")
+  -d "$FINALIZE_BODY")
 
 VIDEO_ID=$(echo "$FINALIZE_RESPONSE" | grep -o '"videoId":"[^"]*"' | cut -d'"' -f4)
 
