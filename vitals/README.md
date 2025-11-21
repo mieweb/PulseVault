@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) project - **PulseVault Vitals**, the frontend PWA for PulseVault's infinite-scroll video feed.
 
-## Getting Started
+## 🚀 Quick Start
 
-First, run the development server:
+See [SETUP.md](./SETUP.md) for detailed setup instructions.
 
 ```bash
+# Install dependencies
+npm install
+
+# Copy environment config
+cp .env.local.example .env.local
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:4000](http://localhost:4000) to see the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📚 Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **[SETUP.md](./SETUP.md)** - Quick start guide and testing instructions
+- **[VITALS_README.md](./VITALS_README.md)** - Complete technical documentation
 
-## Learn More
+## ✨ Features
 
-To learn more about Next.js, take a look at the following resources:
+- ✅ Infinite-scroll video feed with react-virtuoso
+- ✅ HLS adaptive streaming with hls.js
+- ✅ Resumable uploads with Uppy + tus protocol
+- ✅ PWA support with offline capabilities
+- ✅ Viewport-based autoplay/pause
+- ✅ Responsive mobile-first design
+- ✅ TypeScript for type safety
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🏗️ Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Framework:** Next.js 15 (App Router) + React 19
+- **Styling:** Tailwind CSS 4
+- **Video:** hls.js + HTML5 video
+- **Uploads:** Uppy + tus-js-client
+- **Virtualization:** react-virtuoso
+- **TypeScript:** Full type safety
 
-## Deploy on Vercel
+## 📦 Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+vitals/
+├── src/
+│   ├── app/              # Next.js pages (App Router)
+│   ├── components/       # React components
+│   └── lib/             # API client & utilities
+├── public/              # Static assets & PWA files
+└── SETUP.md            # Setup instructions
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🔌 Backend Integration
+
+Vitals connects to the PulseVault backend at `http://localhost:3000` by default.
+
+Make sure the backend is running:
+```bash
+cd ../pulsevault
+npm run dev
+```
+
+## 📱 PWA Installation
+
+The app can be installed as a Progressive Web App:
+- **Mobile:** Look for "Add to Home Screen" prompt
+- **Desktop:** Click install icon in browser address bar
+
+## 🧪 Development
+
+```bash
+npm run dev      # Start dev server (port 4000)
+npm run build    # Build for production
+npm start        # Start production server
+npm run lint     # Run ESLint
+```
+
+## 🔐 Security & Compliance
+
+- HMAC-signed media URLs with expiry
+- JWT-ready authentication
+- HTTPS required for production PWA
+- Designed for HIPAA compliance
+
+## 🤝 Contributing
+
+This is part of the PulseVault platform. See main repository README for contribution guidelines.
+
+## 📄 License
+
+Source-available license. See LICENSE file in repository root.
+
+---
+
+**PulseVault Vitals** - Your data has a heartbeat. Vitals makes it visible.
+
