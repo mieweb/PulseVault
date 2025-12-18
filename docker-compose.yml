@@ -80,19 +80,16 @@ services:
     # Note: container_name removed to allow scaling
 
   # Nginx reverse proxy
-  # Note: For Proxmox LXC containers, use docker-compose.proxmox.yml override
-  # to use non-privileged ports (8080/8443) instead of 80/443
+  # Note: Uses port 8080 for unprivileged LXC containers (Proxmox handles SSL termination)
   nginx:
     image: nginx:alpine
     container_name: pulsevault-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80" # LXC host port 8080 → Docker container port 80 (Proxmox handles HTTPS externally)
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
       - media-storage:/media:ro
       - nginx-cache:/var/cache/nginx # Persist cache across restarts
     depends_on:
