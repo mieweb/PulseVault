@@ -98,30 +98,8 @@ fi
 
 echo "✅ Storage directories created at $STORAGE_BASE"
 
-# Generate SSL certificates for Docker Compose
-if command -v docker &> /dev/null; then
-    echo ""
-    echo "Generating SSL certificates for Docker Compose..."
-    PROJECT_ROOT="$(dirname "$0")/.."
-    SSL_DIR="$PROJECT_ROOT/nginx/ssl"
-    mkdir -p "$SSL_DIR"
-    
-    if [ ! -f "$SSL_DIR/cert.pem" ] || [ ! -f "$SSL_DIR/key.pem" ]; then
-        if command -v openssl &> /dev/null; then
-            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                -keyout "$SSL_DIR/key.pem" \
-                -out "$SSL_DIR/cert.pem" \
-                -subj "/CN=localhost" 2>/dev/null
-            chmod 644 "$SSL_DIR/cert.pem" 2>/dev/null || true
-            chmod 600 "$SSL_DIR/key.pem" 2>/dev/null || true
-            echo "✅ SSL certificates generated"
-        else
-            echo "⚠️  OpenSSL not found, skipping SSL certificate generation"
-        fi
-    else
-        echo "✅ SSL certificates already exist"
-    fi
-fi
+# Note: SSL termination is handled by Proxmox, so nginx runs on HTTP (port 80)
+# No SSL certificates need to be generated for the nginx container.
 
 echo ""
 echo "🎉 Setup complete!"
@@ -136,13 +114,19 @@ echo ""
 echo "  2. In another terminal, start the transcoding worker:"
 echo "     cd pulsevault && npm run worker"
 echo ""
-echo "  3. Access the API at http://localhost:3000"
+echo "  3. Access the API at http://localhost:3000 (direct) or http://localhost:8080 (via nginx)"
 echo "  4. Check metrics at http://localhost:3000/metrics"
 echo ""
 echo "Storage location: $STORAGE_BASE"
 echo ""
 echo "For full Docker Compose stack:"
 echo "  cd .. && docker-compose up -d"
+echo ""
+echo "  Access via nginx (Proxmox): http://localhost:8080"
+echo "  Access API directly: http://localhost:3000"
+echo "  Prometheus: http://localhost:9090"
+echo "  Grafana: http://localhost:3001"
+echo "  Loki: http://localhost:3100"
 echo ""
 echo "To stop all services:"
 echo "  docker-compose down"
