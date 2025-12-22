@@ -5,7 +5,7 @@
 set -e
 
 API_BASE="http://localhost:3000"
-NGINX_BASE="http://localhost:80"
+NGINX_BASE="http://localhost:8080"
 PROMETHEUS_BASE="http://localhost:9090"
 GRAFANA_BASE="http://localhost:3001"
 LOKI_BASE="http://localhost:3100"
@@ -118,8 +118,8 @@ echo ""
 # ============================================================================
 # 4. NGINX REVERSE PROXY
 # ============================================================================
-echo "4️⃣  Nginx Reverse Proxy (Port 80)"
-echo "──────────────────────────────────"
+echo "4️⃣  Nginx Reverse Proxy (Port 8080)"
+echo "───────────────────────────────────"
 
 test_endpoint "Nginx health" "GET" "$NGINX_BASE/health" "200"
 test_endpoint "Nginx → API root" "GET" "$NGINX_BASE/" "200"

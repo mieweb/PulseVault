@@ -145,9 +145,7 @@ curl https://yourdomain.com/health
 
 **GET /media/videos/:id/:path?token=...** - Stream media (supports Range requests)
 
-**GET /media/videos/:id/metadata?token=...** - Get video metadata
-
-**GET /media/videos/:id/renditions?token=...** - List available renditions
+**GET /media/videos/:id/metadata?token=...** - Get video metadata (includes renditions list)
 
 For detailed API documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
 

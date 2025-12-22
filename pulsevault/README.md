@@ -50,15 +50,14 @@ See [../SETUP.md](../SETUP.md) for full deployment instructions including Docker
 
 - `POST /uploads` - Start resumable upload (tus protocol)
 - `PATCH /uploads/:id` - Upload chunks
+- `HEAD /uploads/:id` - Get upload status (TUS protocol)
 - `POST /uploads/finalize` - Finalize and enqueue transcoding
-- `GET /uploads/status/:uploadId` - Check upload status
 
 ### Media
 
 - `POST /media/sign` - Generate signed URL
 - `GET /media/videos/:videoId/:path?token=<token>` - Stream media (supports range requests)
-- `GET /media/videos/:videoId/metadata?token=<token>` - Get video metadata
-- `GET /media/videos/:videoId/renditions?token=<token>` - List available renditions
+- `GET /media/videos/:videoId/metadata?token=<token>` - Get video metadata (includes renditions)
 
 ### Observability
 

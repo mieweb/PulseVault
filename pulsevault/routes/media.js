@@ -306,38 +306,6 @@ module.exports = async function (fastify, opts) {
     return publicMetadata
   })
 
-  /**
-   * List available renditions for a video
-   */
-  fastify.get('/media/videos/:videoId/renditions', async (request, reply) => {
-    const { videoId } = request.params
-    const { token } = request.query
-
-    // Verify token
-    const tokenCheck = verifyToken(videoId, 'renditions', token)
-    if (!tokenCheck.valid) {
-      return reply.unauthorized(tokenCheck.reason)
-    }
-
-    const videoDir = path.join(fastify.config.videoDir, videoId)
-    const hlsDir = path.join(videoDir, 'hls')
-
-    if (!fs.existsSync(hlsDir)) {
-      return { renditions: [], status: 'pending' }
-    }
-
-    // List available renditions
-    const files = await fs.promises.readdir(hlsDir)
-    const renditions = files
-      .filter(f => f.endsWith('.m3u8') && f !== 'master.m3u8')
-      .map(f => f.replace('.m3u8', ''))
-
-    return {
-      renditions,
-      status: renditions.length > 0 ? 'ready' : 'processing',
-      masterPlaylist: renditions.length > 0 ? 'hls/master.m3u8' : null
-    }
-  })
 }
 
 /**
