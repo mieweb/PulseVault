@@ -95,7 +95,7 @@ services:
     depends_on:
       - pulsevault
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -144,12 +144,9 @@ services:
       - loki-data:/loki
       - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
     command: -config.file=/etc/loki/local-config.yaml
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+    # Note: Health check removed - distroless image doesn't have wget/curl
+    # Loki needs ~15-20s after startup to become ready (Ingester wait period)
+    # Promtail will wait via depends_on startup delay
 
   # Promtail for log collection
   promtail:
@@ -163,7 +160,7 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       loki:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   # Media storage - videos, uploads, audit logs (CRITICAL)

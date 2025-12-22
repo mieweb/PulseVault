@@ -5,7 +5,7 @@
 set -e
 
 API_BASE="http://localhost:3000"
-NGINX_BASE="http://localhost:80"
+NGINX_BASE="http://localhost:8080"
 PROMETHEUS_BASE="http://localhost:9090"
 GRAFANA_BASE="http://localhost:3001"
 LOKI_BASE="http://localhost:3100"
@@ -118,8 +118,8 @@ echo ""
 # ============================================================================
 # 4. NGINX REVERSE PROXY
 # ============================================================================
-echo "4️⃣  Nginx Reverse Proxy (Port 80)"
-echo "──────────────────────────────────"
+echo "4️⃣  Nginx Reverse Proxy (Port 8080)"
+echo "────────────────────────────────────"
 
 test_endpoint "Nginx health" "GET" "$NGINX_BASE/health" "200"
 test_endpoint "Nginx → API root" "GET" "$NGINX_BASE/" "200"
@@ -342,28 +342,13 @@ fi
 echo ""
 
 # ============================================================================
-# 11. SSL/TLS (if configured)
+# 11. SSL/TLS Configuration
 # ============================================================================
+# Note: SSL termination is handled by Proxmox, so nginx runs on HTTP only.
+# This test section is skipped for Proxmox environments.
 echo "1️⃣1️⃣  SSL/TLS Configuration"
 echo "───────────────────────────"
-
-if [ -d "nginx/ssl" ] && [ -f "nginx/ssl/cert.pem" ]; then
-    echo "   ✅ SSL certificates found"
-    PASSED=$((PASSED + 1))
-    
-    # Test HTTPS endpoint (use -k to accept self-signed certs)
-    echo -n "   Testing HTTPS endpoint... "
-    HTTPS_RESPONSE=$(curl -s -k -w "\nHTTP_CODE:%{http_code}" "https://localhost/health" 2>/dev/null || echo "HTTP_CODE:000")
-    HTTPS_CODE=$(echo "$HTTPS_RESPONSE" | grep "HTTP_CODE" | cut -d: -f2)
-    if [ "$HTTPS_CODE" = "200" ]; then
-        echo "✅ ($HTTPS_CODE)"
-        PASSED=$((PASSED + 1))
-    else
-        echo "⚠️  (HTTP $HTTPS_CODE - may need to accept self-signed cert)"
-    fi
-else
-    echo "   ⚠️  SSL certificates not found (using HTTP only)"
-fi
+echo "   ℹ️  SSL termination handled by Proxmox (nginx uses HTTP on port 80)"
 echo ""
 
 # ============================================================================
@@ -372,23 +357,24 @@ echo ""
 echo "1️⃣2️⃣  Audit Logs"
 echo "────────────────"
 
-AUDIT_DIR="$PULSEVAULT_TEMP_DIR/audit"
-if [ -d "$AUDIT_DIR" ]; then
-    LOG_COUNT=$(find "$AUDIT_DIR" -name "*.log" 2>/dev/null | wc -l | tr -d ' ')
+# Check audit directory in Docker container (where logs are actually stored)
+AUDIT_DIR="/media/audit"
+if docker compose exec -T pulsevault test -d "$AUDIT_DIR" 2>/dev/null; then
+    LOG_COUNT=$(docker compose exec -T pulsevault find "$AUDIT_DIR" -name "*.log" 2>/dev/null | wc -l | tr -d ' ')
     if [ "$LOG_COUNT" -gt 0 ]; then
         echo "   ✅ Audit logs found ($LOG_COUNT files)"
         PASSED=$((PASSED + 1))
         
-        # Check log chain integrity (if logs exist)
-        LATEST_LOG=$(find "$AUDIT_DIR" -name "*.log" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2- || echo "")
+        # Get latest log file
+        LATEST_LOG=$(docker compose exec -T pulsevault find "$AUDIT_DIR" -name "*.log" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2- || echo "")
         if [ -n "$LATEST_LOG" ]; then
             echo "   📝 Latest log: $(basename "$LATEST_LOG")"
         fi
     else
-        echo "   ⚠️  No audit logs yet"
+        echo "   ℹ️  Audit directory exists, no logs yet (normal if no uploads processed)"
     fi
 else
-    echo "   ⚠️  Audit directory not found"
+    echo "   ℹ️  Audit directory will be created when needed"
 fi
 echo ""
 
