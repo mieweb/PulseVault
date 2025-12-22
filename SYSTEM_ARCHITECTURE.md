@@ -4,16 +4,40 @@
 
 PulseVault is a HIPAA-compliant video storage and delivery system built with Fastify, featuring resumable uploads, automatic transcoding, and secure media streaming.
 
+### Current API Endpoints (11 endpoints)
+
+**Health & Monitoring:**
+- `GET /` - Health check
+- `GET /metrics` - Prometheus metrics
+
+**Upload (TUS Protocol):**
+- `POST /uploads` - Create upload session
+- `PATCH /uploads/:id` - Upload file chunks
+- `HEAD /uploads/:id` - Get upload status
+- `POST /uploads/finalize` - Finalize upload
+
+**Media Delivery:**
+- `POST /media/sign` - Generate signed URL
+- `GET /media/videos/:videoId/*` - Stream media files
+- `GET /media/videos/:videoId/metadata` - Get video metadata (includes renditions)
+
+**QR Code & Authentication:**
+- `GET /qr/deeplink` - Generate secure deeplink
+- `POST /qr/verify` - Verify upload token
+
+For detailed endpoint documentation, see [ENDPOINT_ANALYSIS.md](./ENDPOINT_ANALYSIS.md).
+
 ### Full Infrastructure Stack
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Nginx Reverse Proxy                          │
-│  - SSL/TLS termination                                               │
+│  - HTTP only (SSL/TLS handled externally by Proxmox/load balancer)  │
 │  - Rate limiting (upload: 10r/s, API: 100r/s, media: 50r/s)         │
 │  - Media caching (10GB cache, 30d TTL)                              │
 │  - Connection limiting                                               │
-│  - Security headers (HSTS, X-Frame-Options, etc.)                   │
+│  - Security headers (X-Frame-Options, etc.)                        │
+│  - Port 8080 (Proxmox LXC) / Port 80 (standard)                     │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
@@ -23,7 +47,8 @@ PulseVault is a HIPAA-compliant video storage and delivery system built with Fas
 │  │   Plugins    │  │    Routes    │  │   Middleware │             │
 │  │ - Config     │  │ - Uploads    │  │ - Audit      │             │
 │  │ - Redis      │  │ - Media      │  │ - Metrics    │             │
-│  │ - Metrics    │  │ - Root       │  │              │             │
+│  │ - Metrics    │  │ - QR         │  │              │             │
+│  │ - Audit      │  │ - Root       │  │              │             │
 │  └──────────────┘  └──────────────┘  └──────────────┘             │
 └────────────────────────────┬────────────────────────────────────────┘
          │                    │                    │
@@ -67,7 +92,7 @@ PulseVault is a HIPAA-compliant video storage and delivery system built with Fas
 1. **pulsevault** - Fastify API server
 2. **transcode-worker** - FFmpeg transcoding workers (2+ replicas)
 3. **redis** - Job queue and metadata cache
-4. **nginx** - Reverse proxy with SSL, caching, rate limiting
+4. **nginx** - Reverse proxy with caching, rate limiting (HTTP only - SSL handled externally)
 5. **prometheus** - Metrics collection and storage
 6. **grafana** - Metrics visualization dashboards
 7. **loki** - Log aggregation system
@@ -178,6 +203,7 @@ PulseVault is a HIPAA-compliant video storage and delivery system built with Fas
 **Endpoints:**
 - `POST /media/sign` - Generate signed URL
 - `GET /media/videos/:videoId/*` - Stream media files
+- `GET /media/videos/:videoId/metadata` - Get video metadata (includes renditions)
 
 **Process:**
 1. ✅ **Generate signed URL** - Client requests signed URL with:
@@ -203,6 +229,40 @@ PulseVault is a HIPAA-compliant video storage and delivery system built with Fas
 **Files Involved:**
 - `routes/media.js` - Media delivery endpoints
 - `plugins/00-config.js` - HMAC secret configuration
+
+---
+
+### 5. **QR Code & Authentication Phase**
+
+**Endpoints:**
+- `GET /qr/deeplink` - Generate secure deeplink with signed token
+- `POST /qr/verify` - Verify upload token
+
+**Process:**
+1. ✅ **Generate deeplink** - Web app requests deeplink with:
+   - User ID, organization ID (optional)
+   - Draft ID (optional, for draft association)
+   - Expiry time (default 24 hours)
+   - Server URL
+2. ✅ **Token generation** - Server creates HMAC-signed token:
+   - Payload: `{server, userId, organizationId, draftId, expiresAt, tokenId, oneTimeUse}`
+   - HMAC-SHA256 signature
+   - Base64url encoded
+3. ✅ **Deeplink construction** - Builds `pulsecam://` URL with token
+4. ✅ **QR code generation** - Client generates QR code from `qrData` field
+5. ✅ **Token verification** - Mobile app validates token before upload:
+   - Checks expiry
+   - Verifies HMAC signature
+   - Returns token payload if valid
+
+**Files Involved:**
+- `routes/qr.js` - QR code and deeplink generation
+- `plugins/00-config.js` - HMAC secret configuration
+
+**Usage:**
+- Web app displays QR code for mobile uploads
+- Mobile app scans QR code to get authenticated upload token
+- Token used during upload finalization
 
 ---
 
@@ -241,7 +301,7 @@ PulseVault is a HIPAA-compliant video storage and delivery system built with Fas
   - `X-Content-Type-Options: nosniff`
   - `X-XSS-Protection: 1; mode=block`
   - `Referrer-Policy: strict-origin-when-cross-origin`
-- **SSL/TLS:** TLS 1.2+ with strong ciphers
+- **SSL/TLS:** Handled externally by Proxmox/load balancer (Nginx serves HTTP only)
 - **CORS:** Configurable CORS headers for media access
 
 ---
@@ -350,7 +410,7 @@ Comprehensive test suite covering all infrastructure components:
 - Metrics endpoint
 - Direct API access
 
-#### ✅ Test 4: Nginx Reverse Proxy (Port 80)
+#### ✅ Test 4: Nginx Reverse Proxy (Port 8080)
 - Nginx health endpoint
 - Proxy to API root
 - Proxy to metrics
@@ -385,8 +445,8 @@ Comprehensive test suite covering all infrastructure components:
 - Validates caching configuration
 
 #### ✅ Test 11: SSL/TLS Configuration
-- Checks for SSL certificates
-- Tests HTTPS endpoints (if configured)
+- Checks for SSL certificates (optional - SSL handled externally)
+- Tests HTTPS endpoints (if configured externally)
 
 #### ✅ Test 12: Audit Logs
 - Validates audit log directory exists
@@ -412,38 +472,62 @@ Comprehensive test suite covering all infrastructure components:
 
 ## 🔄 Complete End-to-End Flow (Tested)
 
+### Upload & Transcode Flow
+
 ```
-1. Client → POST /uploads
+1. Web App → GET /qr/deeplink
    ↓
-2. Server → Returns upload ID
+2. Server → Returns deeplink with signed token
    ↓
-3. Client → PATCH /uploads/:id (upload file)
+3. Web App → Generates QR code from qrData
    ↓
-4. Server → Stores in upload directory
+4. Mobile App → Scans QR code, extracts token
    ↓
-5. Client → POST /uploads/finalize
+5. Mobile App → POST /qr/verify (optional, validate token)
    ↓
-6. Server → Moves to permanent storage
+6. Mobile App → POST /uploads
    ↓
-7. Server → Creates metadata (status: "uploaded")
+7. Server → Returns upload ID
    ↓
-8. Server → Enqueues transcoding job
+8. Mobile App → PATCH /uploads/:id (upload file chunks)
    ↓
-9. Worker → Dequeues job from Redis
+9. Server → Stores in upload directory
    ↓
-10. Worker → Transcodes video (FFmpeg)
+10. Mobile App → POST /uploads/finalize (with token)
+    ↓
+11. Server → Moves to permanent storage
+    ↓
+12. Server → Creates metadata (status: "uploaded")
+    ↓
+13. Server → Enqueues transcoding job
+    ↓
+14. Worker → Dequeues job from Redis
+    ↓
+15. Worker → Transcodes video (FFmpeg)
+    ↓
+16. Worker → Generates HLS renditions
+    ↓
+17. Worker → Updates metadata (status: "transcoded", includes renditions)
+    ↓
+18. Web App → POST /media/sign
+    ↓
+19. Server → Returns signed URL
+    ↓
+20. Video Player → GET /media/videos/:id/hls/master.m3u8?token=...
+    ↓
+21. Server → Verifies token, streams HLS playlist
+```
+
+### Metadata Query Flow
+
+```
+1. Web App → GET /media/videos/:videoId/metadata?token=...
    ↓
-11. Worker → Generates HLS renditions
+2. Server → Verifies token
    ↓
-12. Worker → Updates metadata (status: "transcoded")
+3. Server → Returns metadata (includes renditions, status, dimensions, etc.)
    ↓
-13. Client → POST /media/sign
-   ↓
-14. Server → Returns signed URL
-   ↓
-15. Client → GET /media/videos/:id/hls/master.m3u8?token=...
-   ↓
-16. Server → Verifies token, streams HLS playlist
+4. Web App → Displays video info, quality options
 ```
 
 ---
@@ -461,6 +545,7 @@ pulsevault/
 ├── routes/
 │   ├── uploads.js           # TUS upload & finalization
 │   ├── media.js             # Media delivery & signed URLs
+│   ├── qr.js                # QR code & deeplink generation
 │   └── root.js              # Health check
 ├── lib/
 │   ├── metadata-writer.js   # Atomic metadata operations
@@ -543,7 +628,7 @@ Run `./test-full-infrastructure.sh` to test:
 - ✅ Grafana dashboards
 - ✅ Loki log aggregation
 - ✅ HMAC secret configuration
-- ✅ SSL/TLS setup
+- ✅ SSL/TLS setup (optional - handled externally)
 - ✅ Audit log integrity
 - ✅ Worker scaling
 
@@ -775,7 +860,7 @@ This tests:
 - Prometheus metrics (port 9090)
 - Grafana dashboards (port 3001)
 - Loki log aggregation (port 3100)
-- SSL/TLS (if configured)
+- SSL/TLS (handled externally by Proxmox/load balancer)
 - Worker scaling
 - HMAC secret configuration
 
@@ -847,7 +932,7 @@ docker-compose up -d --build
 | Prometheus | ❌ | ✅ |
 | Grafana | ❌ | ✅ |
 | Loki | ❌ | ✅ |
-| SSL/TLS | ❌ | ✅ |
+| SSL/TLS | ❌ (HTTP only) | ✅ (External) |
 | Worker Scaling | ❌ | ✅ |
 
 ---

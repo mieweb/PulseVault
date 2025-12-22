@@ -119,7 +119,7 @@ echo ""
 # 4. NGINX REVERSE PROXY
 # ============================================================================
 echo "4️⃣  Nginx Reverse Proxy (Port 8080)"
-echo "────────────────────────────────────"
+echo "───────────────────────────────────"
 
 test_endpoint "Nginx health" "GET" "$NGINX_BASE/health" "200"
 test_endpoint "Nginx → API root" "GET" "$NGINX_BASE/" "200"
@@ -348,7 +348,7 @@ echo ""
 # This test section is skipped for Proxmox environments.
 echo "1️⃣1️⃣  SSL/TLS Configuration"
 echo "───────────────────────────"
-echo "   ℹ️  SSL termination handled by Proxmox (nginx uses HTTP on port 80)"
+echo "   ℹ️  SSL termination handled by Proxmox (nginx uses HTTP on port 8080)"
 echo ""
 
 # ============================================================================

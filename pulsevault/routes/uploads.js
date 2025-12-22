@@ -200,23 +200,4 @@ module.exports = async function (fastify, opts) {
     }
   })
 
-  /**
-   * Get upload status
-   */
-  fastify.get('/uploads/status/:uploadId', async (request, reply) => {
-    const { uploadId } = request.params
-    const uploadPath = path.join(fastify.config.uploadDir, uploadId)
-
-    if (!fs.existsSync(uploadPath)) {
-      return reply.notFound('Upload not found')
-    }
-
-    const stats = await fs.promises.stat(uploadPath)
-
-    return {
-      uploadId,
-      size: stats.size,
-      exists: true
-    }
-  })
 }
