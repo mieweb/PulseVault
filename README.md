@@ -61,11 +61,16 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
 
 ## 📦 Repositories
 
-- [`pulsevault`](https://github.com/mieweb/pulsevault) 
-  * pulsevault/  - Secure backend for ingest, transcoding, and serving HLS/DASH media.
-  * vitals/ -  Next.js PWA for viewing Pulse content in an infinite short-video feed.
+- **[`pulsevault`](https://github.com/mieweb/pulsevault)** (This repository)
+  * `pulsevault/` - Secure backend for ingest, transcoding, and serving HLS/DASH media.
+  * `vitals/` - Next.js PWA for viewing Pulse content in an infinite short-video feed.
 
-- [`pulse`](https://github.com/mieweb/pulse) -  Camera and sensor capture app. Records encrypted video/data and pushes to PulseVault.
+- **[`pulse`](https://github.com/mieweb/pulse)** - Mobile camera and sensor capture app
+  * React Native/Expo cross-platform mobile application
+  * Records encrypted video/data and pushes to PulseVault via tus protocol
+  * Features: Video recording, editing, draft management, cross-platform support
+  * Designed for secure institutional knowledge sharing through short-form video content
+  * Documentation: [https://github.com/mieweb/pulse](https://github.com/mieweb/pulse)
 
 ---
 
