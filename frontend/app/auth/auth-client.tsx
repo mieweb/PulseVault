@@ -49,10 +49,10 @@ export default function AuthClient() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      // Validate file size (max 3MB to match server limit)
+      const maxSize = 3 * 1024 * 1024; // 3MB in bytes
       if (file.size > maxSize) {
-        toast.error("Image size must be less than 5MB");
+        toast.error("Image size must be less than 3MB");
         e.target.value = ""; // Reset input
         return;
       }
