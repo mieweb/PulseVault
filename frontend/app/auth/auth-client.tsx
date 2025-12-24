@@ -68,7 +68,7 @@ export default function AuthClient() {
   return (
     <div className="min-h-screen flex">
       {/* Left Side - PulseVault Content */}
-      <div className="hidden lg:flex lg:w-1/2 bg-black p-12 flex-col justify-center text-white relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-background p-12 flex-col justify-center text-foreground relative overflow-hidden">
         {/* Grid Pattern Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
 
@@ -77,77 +77,77 @@ export default function AuthClient() {
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-red-600/5 rounded-full blur-3xl animate-pulse delay-1000" />
         <div className="max-w-lg relative z-10">
           <div className="mb-8">
-            <h1 className="text-5xl font-bold mb-4 text-white">
-              Pulse<span className="text-red-500">Vault</span>
+            <h1 className="text-5xl font-bold mb-4 text-foreground">
+              Pulse<span className="text-destructive">Vault</span>
             </h1>
-            <p className="text-xl text-gray-400">
+            <p className="text-xl text-muted-foreground">
               Secure video storage and delivery for healthcare and research
             </p>
           </div>
 
           <div className="space-y-6 mb-8">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-gray-800 rounded-lg border border-gray-800">
-                <Shield className="w-6 h-6 text-gray-400" />
+              <div className="p-2 bg-muted rounded-lg border border-border">
+                <Shield className="w-6 h-6 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-1 text-white">
+                <h3 className="font-semibold text-lg mb-1 text-foreground">
                   HIPAA Compliant
                 </h3>
-                <p className="text-gray-500 text-sm">
+                <p className="text-muted-foreground text-sm">
                   Built with security and compliance at its core
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-gray-800 rounded-lg border border-gray-800">
-                <Video className="w-6 h-6 text-gray-400" />
+              <div className="p-2 bg-muted rounded-lg border border-border">
+                <Video className="w-6 h-6 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-1 text-white">
+                <h3 className="font-semibold text-lg mb-1 text-foreground">
                   Adaptive Streaming
                 </h3>
-                <p className="text-gray-500 text-sm">
+                <p className="text-muted-foreground text-sm">
                   Automatic transcoding for optimal playback experience
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-gray-800 rounded-lg border border-gray-800">
-                <Lock className="w-6 h-6 text-gray-400" />
+              <div className="p-2 bg-muted rounded-lg border border-border">
+                <Lock className="w-6 h-6 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-1 text-white">
+                <h3 className="font-semibold text-lg mb-1 text-foreground">
                   Secure Access
                 </h3>
-                <p className="text-gray-500 text-sm">
+                <p className="text-muted-foreground text-sm">
                   HMAC-signed URLs with configurable expiry
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-gray-800 rounded-lg border border-gray-800">
-                <Zap className="w-6 h-6 text-gray-400" />
+              <div className="p-2 bg-muted rounded-lg border border-border">
+                <Zap className="w-6 h-6 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-1 text-white">
+                <h3 className="font-semibold text-lg mb-1 text-foreground">
                   Resumable Uploads
                 </h3>
-                <p className="text-gray-500 text-sm">
+                <p className="text-muted-foreground text-sm">
                   Reliable large-file transfers with automatic resume
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Heart className="w-4 h-4 fill-destructive text-destructive" />
             <span>
               Your data has a heartbeat.{" "}
-              <span className="text-red-500">PulseVault</span> protects it.
+              <span className="text-destructive">PulseVault</span> protects it.
             </span>
           </div>
         </div>
