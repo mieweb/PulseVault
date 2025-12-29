@@ -1,12 +1,9 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSession } from "@/lib/get-session";
 import AuthClient from "./auth-client";
 
 export default async function AuthPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
 
   if (session?.user) {
     redirect("/dashboard");

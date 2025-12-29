@@ -22,4 +22,14 @@ export const auth = betterAuth({
     },
   },
   plugins: [nextCookies()],
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        input: false,
+      },
+    },
+  }
 });
+
+export type Session = typeof auth.$Infer.Session;
