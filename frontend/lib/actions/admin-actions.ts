@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { auth } from "../auth";
 import { getSession } from "../get-session";
-import { forbidden, redirect, unauthorized } from "next/navigation";
+import { forbidden, unauthorized } from "next/navigation";
 
 /**
  * Helper function to check if the current user is an admin
