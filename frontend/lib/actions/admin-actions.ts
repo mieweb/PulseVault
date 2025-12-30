@@ -12,7 +12,7 @@ import { forbidden, redirect, unauthorized } from "next/navigation";
 async function requireAdmin() {
   const session = await getSession();
   
-  if (!session?.user)unauthorized();
+  if (!session?.user) unauthorized();
     
   // Check if user has admin role
   // By default, Better Auth admin plugin considers "admin" role as admin
