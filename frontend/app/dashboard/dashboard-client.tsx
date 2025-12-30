@@ -1,8 +1,6 @@
 "use client";
 
-import { auth } from "@/lib/auth";
-
-type Session = typeof auth.$Infer.Session;
+import { Session } from "@/lib/auth";
 
 export default function DashboardClient({ session }: { session: Session }) {
   return (
@@ -10,12 +8,27 @@ export default function DashboardClient({ session }: { session: Session }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-card rounded-lg shadow-sm border border-border p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-card-foreground">
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Welcome back, {session.user.name || session.user.email}!
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-card-foreground">
+                  Dashboard
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                  Welcome back, {session.user.name || session.user.email}!
+                </p>
+              </div>
+              {session.user.role && (
+                <span
+                  className={`px-3 py-1.5 rounded-md text-sm font-semibold ${
+                    session.user.role === "ADMIN"
+                      ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  }`}
+                >
+                  {session.user.role}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -88,6 +101,20 @@ export default function DashboardClient({ session }: { session: Session }) {
                   {session.user.emailVerified ? "Yes" : "No"}
                 </span>
               </div>
+              {session.user.role && (
+                <div className="flex items-center">
+                  <span className="text-muted-foreground w-32">Role:</span>
+                  <span
+                    className={`px-2 py-1 rounded-md text-sm font-medium ${
+                      session.user.role === "ADMIN"
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                    }`}
+                  >
+                    {session.user.role}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

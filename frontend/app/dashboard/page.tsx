@@ -1,17 +1,12 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/get-session";
 import { signOut } from "@/lib/actions/auth-actions";
 import DashboardClient from "./dashboard-client";
+import { unauthorized } from "next/navigation";
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    redirect("/auth");
-  }
-
+  const session = await getSession();
+  const user = session?.user;
+  if(!user)unauthorized();
   return <DashboardClient session={session} />;
 }
