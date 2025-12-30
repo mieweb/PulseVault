@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
+import { admin } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
 
@@ -21,15 +22,7 @@ export const auth = betterAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     },
   },
-  plugins: [nextCookies()],
-  user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        input: false,
-      },
-    },
-  }
+  plugins: [admin(), nextCookies()]
 });
 
 export type Session = typeof auth.$Infer.Session;
