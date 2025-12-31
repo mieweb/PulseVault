@@ -13,12 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, X, Shield, Video, Lock, Zap, Heart } from "lucide-react";
+import { Loader2, X, Shield, Video, Lock, Zap, Heart, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { signIn, signUp, signInWithSocial } from "@/lib/actions/auth-actions";
+import { signIn, signUp, signInWithSocial, resendVerificationEmail } from "@/lib/actions/auth-actions";
 import { z } from "zod";
 
 async function convertImageToBase64(file: File): Promise<string> {
@@ -95,9 +95,10 @@ const signUpSchema = z
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export default function AuthClient() {
-  const [isSignIn, setIsSignIn] = useState(true);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<"signIn" | "signUp" | "email-verification">("signIn");
+  const [verificationEmail, setVerificationEmail] = useState(""); // Store email for verification screen
 
   // Sign up state
   const [firstName, setFirstName] = useState("");
@@ -278,16 +279,76 @@ export default function AuthClient() {
         <Card className="max-w-2xl w-full">
           <CardHeader>
             <CardTitle className="text-lg md:text-xl">
-              {isSignIn ? "Sign In" : "Sign Up"}
+              {selectedTab === "signIn" 
+                ? "Sign In" 
+                : selectedTab === "signUp" 
+                ? "Sign Up" 
+                : "Verify Your Email"}
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              {isSignIn
+              {selectedTab === "signIn"
                 ? "Enter your email below to login to your account"
-                : "Enter your information to create an account"}
+                : selectedTab === "signUp"
+                ? "Enter your information to create an account"
+                : "We've sent a verification link to your email address"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isSignIn ? (
+            {selectedTab === "email-verification" ? (
+              // Email Verification Screen
+              <div className="grid gap-4">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="p-4 bg-muted rounded-full mb-4">
+                    <Mail className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2 text-center">
+                    Check your email
+                  </h3>
+                  <p className="text-sm text-muted-foreground text-center mb-2">
+                    We've sent a verification link to
+                  </p>
+                  <p className="text-sm font-medium mb-6 text-center">
+                    {verificationEmail}
+                  </p>
+                  <p className="text-xs text-muted-foreground text-center mb-6 max-w-md">
+                    Click the link in the email to verify your account. If you don't see the email, check your spam folder.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={loading}
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        await resendVerificationEmail(verificationEmail);
+                        toast.success("Verification email resent successfully");
+                      } catch (error: any) {
+                        toast.error(error?.message || "Failed to resend verification email");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    {loading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      "Resend verification email"
+                    )}
+                  </Button>
+                  <div className="text-center text-sm text-muted-foreground mt-4">
+                    <button
+                      onClick={() => {
+                        setSelectedTab("signIn");
+                        setVerificationEmail("");
+                      }}
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Back to sign in
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : selectedTab === "signIn" ? (
               // Sign In Form
               <div className="grid gap-4">
                 <div className="grid gap-2">
@@ -346,7 +407,28 @@ export default function AuthClient() {
                         }, 100);
                       }
                     } catch (error: any) {
-                      toast.error(error?.message || "Failed to sign in");
+                      const errorMessage = error?.message || error?.error?.message || "Failed to sign in";
+                      const errorCode = error?.code || error?.error?.code || "";
+                      
+                      // Check if error is about email verification
+                      // Better-auth might return codes like "EMAIL_NOT_VERIFIED" or similar messages
+                      const isEmailNotVerified = 
+                        errorCode === "EMAIL_NOT_VERIFIED" ||
+                        errorCode === "EMAIL_VERIFICATION_REQUIRED" ||
+                        (errorMessage.toLowerCase().includes("email") && 
+                         (errorMessage.toLowerCase().includes("not verified") ||
+                          errorMessage.toLowerCase().includes("unverified") ||
+                          errorMessage.toLowerCase().includes("verification required") ||
+                          errorMessage.toLowerCase().includes("verify your email")));
+                      
+                      if (isEmailNotVerified) {
+                        // Show verification screen with the email
+                        setVerificationEmail(email);
+                        setSelectedTab("email-verification");
+                        toast.error("Please verify your email address to sign in");
+                      } else {
+                        toast.error(errorMessage);
+                      }
                     } finally {
                       setLoading(false);
                     }
@@ -440,7 +522,7 @@ export default function AuthClient() {
                 <div className="text-center text-sm text-muted-foreground mt-4">
                   Don't have an account?{" "}
                   <button
-                    onClick={() => setIsSignIn(!isSignIn)}
+                    onClick={() => setSelectedTab("signUp")}
                     className="text-primary hover:underline font-medium"
                   >
                     Sign up
@@ -626,12 +708,19 @@ export default function AuthClient() {
                         imageBase64
                       );
                       if (result && result.user) {
-                        toast.success("Account created successfully");
-                        router.push("/dashboard");
-                        // Refresh server components after navigation to update session
-                        setTimeout(() => {
-                          router.refresh();
-                        }, 100);
+                        toast.success("Account created successfully! Please check your email to verify your account.");
+                        // Store email and show verification screen
+                        setVerificationEmail(email);
+                        setSelectedTab("email-verification");
+                        // Clear form
+                        setFirstName("");
+                        setLastName("");
+                        setEmail("");
+                        setPassword("");
+                        setPasswordConfirmation("");
+                        setImage(null);
+                        setImagePreview(null);
+                        setErrors({});
                       }
                     } catch (error: any) {
                       toast.error(error?.message || "Failed to sign up");
@@ -650,7 +739,7 @@ export default function AuthClient() {
                 <div className="text-center text-sm text-muted-foreground mt-4">
                   Already have an account?{" "}
                   <button
-                    onClick={() => setIsSignIn(!isSignIn)}
+                    onClick={() => setSelectedTab("signIn")}
                     className="text-primary hover:underline font-medium"
                   >
                     Sign in

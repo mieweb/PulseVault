@@ -59,3 +59,14 @@ export const signOut = async () => {
   });
   redirect("/");
 };
+
+export const resendVerificationEmail = async (email: string) => {
+    const result = await auth.api.sendVerificationEmail({
+      body: {
+        email,
+        callbackURL: "/dashboard",
+      },
+    });
+    return result;
+};
+
