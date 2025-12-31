@@ -8,14 +8,15 @@ This repository defines the **Pulse Platform** architecture and coordination bet
 | Component | Description | Stack |
 |------------|--------------|-------|
 | **Pulse** | Capture app for recording and uploading encrypted video/data | Native / Mobile |
-| **PulseVault** | Backend storage and processing system (Fastify + FFmpeg + Redis + Nginx) | Node.js |
-| **Vitals** | Frontend application for viewing and interacting with short-form, streaming media | React + Next.js (PWA) |
+| **PulseVault Backend** | Storage and processing system (Fastify + FFmpeg + Redis + Nginx) | Node.js |
+| **Vitals** | Frontend application for uploading, viewing, and managing short-form videos | Next.js + React + TypeScript |
 
 ---
 
 ## Overview
 
-**PulseVault** receives encrypted uploads from the **Pulse** camera app, transcodes them to adaptive HLS/DASH video, and serves them securely to **Vitals** clients.  
+**PulseVault** is a HIPAA-compliant video storage and delivery platform. The **Backend** receives encrypted uploads from the **Pulse** camera app, transcodes them to adaptive HLS/DASH video, and serves them securely. **Vitals** provides a web interface for users to upload short-form videos, view them in an infinite feed, manage their profiles, and access administrative features.
+
 The entire system is designed for **HIPAA compliance**, **self-hosted deployment**, and **high performance** across web and mobile.
 
 ---
@@ -23,30 +24,132 @@ The entire system is designed for **HIPAA compliance**, **self-hosted deployment
 ## Architecture
 
 ```
-+---------------------------+
-|       Pulse (App)         |
-|  Record & push content    |
-+-------------+-------------+
-|
-| HTTPS (tus resumable uploads)
-v
-+---------------------------+
-|     PulseVault Backend    |
-|  Fastify + FFmpeg + Redis |
-|  HMAC-signed media access |
-+-------------+-------------+
-|
-| HLS/DASH streams via Nginx
-v
-+---------------------------+
-|        Vitals Frontend    |
-|  Next.js PWA / Expo app   |
-|  Infinite video feed      |
-+---------------------------+
-
+┌─────────────────────────────┐
+│       Pulse (App)           │
+│  Record & push content      │
+└──────────────┬──────────────┘
+               │
+               │ HTTPS (tus resumable uploads)
+               ▼
+┌─────────────────────────────┐
+│   PulseVault Backend        │
+│  Fastify + FFmpeg + Redis   │
+│  HMAC-signed media access   │
+└──────────────┬──────────────┘
+               │
+               │ HLS/DASH streams via Nginx
+               ▼
+┌─────────────────────────────┐
+│        Vitals (Frontend)     │
+│  Next.js App                 │
+│  - Video upload              │
+│  - Short-form video feed     │
+│  - User management          │
+│  - Admin dashboard           │
+└─────────────────────────────┘
 ```
 
 For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md).
+
+### Authentication Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Authentication Flow                            │
+└─────────────────────────────────────────────────────────────────┘
+
+┌──────────────┐
+│   User       │
+│  (Browser)   │
+└──────┬───────┘
+       │
+       │ 1. Click "Sign in with Google/GitHub"
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│         Vitals (Next.js Frontend)                           │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Auth Page (/auth)                                    │  │
+│  │  - SSO-only authentication                            │  │
+│  │  - Google OAuth button                                │  │
+│  │  - GitHub OAuth button                                │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Better Auth (auth.ts)                               │  │
+│  │  - Social providers (Google, GitHub)                  │  │
+│  │  - Account linking                                    │  │
+│  │  - Session management                                 │  │
+│  └──────────────────────────────────────────────────────┘  │
+└──────┬───────────────────────────────────────────────────────┘
+       │
+       │ 2. Redirect to OAuth provider
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│         OAuth Provider (Google / GitHub)                    │
+│  - User authenticates                                       │
+│  - Grants permissions                                       │
+│  - Returns authorization code                               │
+└──────┬───────────────────────────────────────────────────────┘
+       │
+       │ 3. OAuth callback with code
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│         Better Auth API (/api/[...all]/route.ts)            │
+│  - Exchanges code for tokens                                │
+│  - Fetches user profile (name, email, avatar)               │
+│  - Creates/updates user in database                         │
+│  - Generates session cookie                                 │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Arcjet Security                                     │  │
+│  │  - Bot detection                                      │  │
+│  │  - Rate limiting (10 req/10min for auth)              │  │
+│  │  - Shield protection                                  │  │
+│  └──────────────────────────────────────────────────────┘  │
+└──────┬───────────────────────────────────────────────────────┘
+       │
+       │ 4. Session cookie set, redirect to dashboard
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│         Vitals                                               │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Dashboard (/dashboard)                              │  │
+│  │  - Authenticated user session                         │  │
+│  │  - Video viewing interface                             │  │
+│  │  - Video upload functionality                         │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Profile Page (/profile)                             │  │
+│  │  - View profile (name, email, avatar from OAuth)     │  │
+│  │  - Edit name only                                     │  │
+│  │  - Manage linked accounts                             │  │
+│  │  - Delete account                                     │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Admin Page (/admin) - Admin users only              │  │
+│  │  - User management                                    │  │
+│  │  - Role management                                    │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│         Database (PostgreSQL)                               │
+│  - User accounts                                             │
+│  - OAuth account links                                       │
+│  - Sessions                                                  │
+│  - Roles and permissions                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Authentication Features:**
+- **SSO-only**: No email/password authentication
+- **OAuth Providers**: Google and GitHub
+- **Account Linking**: Users can connect multiple OAuth providers to one account
+- **Session Management**: Cookie-based sessions with 5-minute cache
+- **Security**: Arcjet bot detection and rate limiting
+- **Profile Images**: Automatically synced from OAuth provider (read-only)
 
 ### Core Principles
 - **Disk-first metadata**: every video has a `meta.json` sidecar (source of truth).  
@@ -63,7 +166,7 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
 
 - **[`pulsevault`](https://github.com/mieweb/pulsevault)** (This repository)
   * `pulsevault/` - Secure backend for ingest, transcoding, and serving HLS/DASH media.
-  * `vitals/` - Next.js PWA for viewing Pulse content in an infinite short-video feed.
+  * `frontend/` - Next.js application (Vitals) for uploading, viewing, and managing short-form videos.
 
 - **[`pulse`](https://github.com/mieweb/pulse)** - Mobile camera and sensor capture app
   * React Native/Expo cross-platform mobile application
@@ -80,26 +183,42 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
 sequenceDiagram
     autonumber
 
+    participant User as 👤 **User (Browser)**
+    participant Vitals as 💻 **Vitals (Next.js Frontend)**
+    participant OAuth as 🔐 **OAuth Provider (Google/GitHub)**
+    participant AuthAPI as 🔒 **Better Auth API**
+    participant Arcjet as 🛡️ **Arcjet Security**
+    participant Database as 🗃️ **PostgreSQL**
     participant Pulse as 📷 **Pulse (Camera App)**
     participant Nginx as 🌐 **Nginx Reverse Proxy**
-    participant Vitals as 💻 **Vitals (Next.js PWA Frontend)**
-    participant PulseVault as 🩸 **PulseVault (Fastify + tus-node-server)**
+    participant PulseVault as 🩸 **PulseVault Backend**
     participant Redis as 💡 **Redis Queue**
-    participant Transcoder as ⚙️ **Transcoder Worker (FFmpeg + Shaka Packager)**
-    participant Storage as 💾 **Encrypted Storage (/mnt/media)**
-    participant Database as 🗃️ **Optional Mirror DB (DuckDB / Postgres / MariaDB)**
-    participant Observability as 📊 **Observability Stack (Prometheus + Loki + Tempo)**
+    participant Transcoder as ⚙️ **Transcoder Worker**
+    participant Storage as 💾 **Encrypted Storage**
 
-    %% --- Upload Phase ---
+    %% --- Authentication Phase ---
+    User->>+Vitals: Visit /auth
+    Vitals->>User: Display SSO sign-in buttons
+    User->>+OAuth: Click "Sign in with Google/GitHub"
+    OAuth->>User: Authenticate and grant permissions
+    OAuth->>+AuthAPI: OAuth callback with code
+    AuthAPI->>+Arcjet: Check bot detection & rate limit
+    Arcjet-->>AuthAPI: Allow request
+    AuthAPI->>+Database: Create/update user session
+    Database-->>AuthAPI: Session created
+    AuthAPI-->>Vitals: Session cookie set, redirect to /dashboard
+    deactivate AuthAPI
+    deactivate OAuth
+
+    %% --- Upload Phase (from Pulse App) ---
     Pulse->>+Nginx: Initiate resumable upload (tus protocol)
     Nginx->>+PulseVault: Proxy POST /uploads
     PulseVault->>Storage: Write upload chunk to /mnt/media/uploads
     PulseVault-->>Pulse: 204 No Content (chunk acknowledged)
     Pulse->>+PulseVault: POST /uploads/finalize
     PulseVault->>Storage: Move file → /videos/<uuid>/original.mp4
-    PulseVault->>Storage: Write meta.tmp.json → meta.json (atomic fsync)
+    PulseVault->>Storage: Write meta.json (atomic fsync)
     PulseVault->>Redis: Enqueue "transcode" job
-    PulseVault->>Observability: Log upload audit + metrics
     deactivate PulseVault
 
     %% --- Transcode Phase ---
@@ -107,20 +226,26 @@ sequenceDiagram
     Transcoder->>Storage: Read original.mp4
     Transcoder->>Storage: Write HLS/DASH renditions (240p–1080p)
     Transcoder->>Storage: Update meta.json (duration, renditions)
-    Transcoder->>Database: (Optional) Mirror metadata
-    Transcoder->>Observability: Emit metrics and logs
     deactivate Transcoder
 
-    %% --- Playback Phase ---
+    %% --- Video Viewing Phase ---
+    User->>+Vitals: Request video feed
     Vitals->>+Nginx: Request /media/videos/<uuid>/hls/playlist.m3u8
     Nginx->>+PulseVault: Validate signed HMAC token (≤300s expiry)
     PulseVault->>Storage: Stream byte ranges (206 Partial Content)
-    PulseVault->>Observability: Log access audit + metrics
-    deactivate PulseVault
-    Vitals-->>Vitals: Autoplay adaptive HLS/DASH feed
+    PulseVault-->>Vitals: HLS playlist + segments
+    Vitals-->>User: Display video in feed
 
-    %% --- Observability & Retention ---
-    Note over Observability,Storage: Hash-chained daily audit logs<br/>Optional MinIO Object Lock replication for immutability
+    %% --- Video Upload Phase (from Vitals) ---
+    User->>+Vitals: Upload video from browser
+    Vitals->>+Nginx: Initiate resumable upload (tus protocol)
+    Nginx->>+PulseVault: Proxy POST /uploads
+    PulseVault->>Storage: Write upload chunk
+    PulseVault-->>Vitals: Upload progress
+    Vitals->>+PulseVault: POST /uploads/finalize
+    PulseVault->>Storage: Move file → /videos/<uuid>/original.mp4
+    PulseVault->>Redis: Enqueue "transcode" job
+    deactivate PulseVault
 ```
 
 
@@ -135,15 +260,16 @@ sequenceDiagram
 - **Immutable Logs:** optional MinIO Object Lock bucket
 
 ### Vitals (Frontend)
-- **Framework:** Next.js (App Router) + React + TypeScript
-- **Styling:** TailwindCSS + Framer Motion
-- **Upload:** Uppy + tus client
-- **Feed:** react-virtuoso infinite scroll
-- **Video:** HTML5 video + hls.js (desktop) / native HLS (iOS)
-- **Auth:** JWT/OIDC (Clerk/Auth.js)
-- **PWA:** installable, offline shell, cached segments
-- **Realtime:** WebSocket (fastify-ws)
-- **Optional native:** Expo wrapper using react-native-web
+- **Framework:** Next.js 16 (App Router) + React 19 + TypeScript
+- **Styling:** TailwindCSS + shadcn/ui components
+- **Authentication:** Better Auth (OAuth: Google, GitHub)
+- **Database:** PostgreSQL with Prisma ORM
+- **Security:** Arcjet (bot detection, rate limiting)
+- **Upload:** Video upload interface (integrates with backend tus)
+- **Video Playback:** HTML5 video + hls.js for adaptive streaming
+- **State Management:** React Server Components + Server Actions
+- **UI Components:** Radix UI + shadcn/ui
+- **Features:** Short-form video feed, profile management, admin dashboard
 
 ---
 
@@ -153,7 +279,10 @@ sequenceDiagram
 |--------------|----------------|
 | **Encryption in transit** | TLS 1.2+ across all services |
 | **Encryption at rest** | LUKS/ZFS encrypted volumes |
-| **Access control** | JWT auth, signed HMAC URLs (≤300 s expiry) |
+| **Access control** | OAuth SSO, signed HMAC URLs (≤300 s expiry) |
+| **Authentication** | SSO-only (Google, GitHub), no password storage |
+| **Bot protection** | Arcjet integration for auth endpoints |
+| **Rate limiting** | Arcjet + Nginx rate limiting |
 | **Audit logs** | Append-only, hash-chained daily rotation |
 | **Data minimization** | UUID-only identifiers, no PHI in filenames |
 | **BAA extensions** | optional CDN, MinIO, and alerting integrations |
@@ -163,12 +292,38 @@ sequenceDiagram
 ## 🧪 Development Setup
 
 ```bash
-./scripts/setup.sh              # Automated setup (includes SSL certs)
-cd pulsevault && npm run dev        # Terminal 1: API server
-cd pulsevault && npm run worker     # Terminal 2: Worker
+# Backend
+cd pulsevault
+npm install
+npm run dev              # Terminal 1: API server
+npm run worker           # Terminal 2: Worker
+
+# Frontend
+cd frontend
+npm install
+npm run dev              # Terminal 3: Next.js dev server (port 3001)
 ```
 
-API: `http://localhost:3000` | Full setup: [SETUP.md](SETUP.md)
+**Backend API:** `http://localhost:3000`  
+**Frontend:** `http://localhost:3001`  
+**Full setup:** [SETUP.md](SETUP.md)
+
+### Environment Variables
+
+**Backend (`pulsevault/.env`):**
+- `HMAC_SECRET` - Secret for signed URLs
+- `REDIS_HOST` - Redis connection
+- `DATABASE_URL` - PostgreSQL connection (if using)
+
+**Frontend (`frontend/.env`):**
+- `DATABASE_URL` - PostgreSQL connection
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth secret
+- `GITHUB_CLIENT_ID` - GitHub OAuth client ID
+- `GITHUB_CLIENT_SECRET` - GitHub OAuth secret
+- `ARCJET_API_KEY` - Arcjet API key for security
+- `BETTER_AUTH_SECRET` - Better Auth session secret
+- `BETTER_AUTH_URL` - Better Auth base URL
 
 ---
 
@@ -177,6 +332,7 @@ API: `http://localhost:3000` | Full setup: [SETUP.md](SETUP.md)
 | Component      | Purpose                       |
 | -------------- | ----------------------------- |
 | **Redis**      | job queue, rate limiting      |
+| **PostgreSQL** | user authentication, metadata |
 | **Prometheus** | metrics collection            |
 | **Grafana**    | dashboards                    |
 | **Loki**       | log aggregation               |
@@ -211,7 +367,7 @@ For production deployment, see [SETUP.md](SETUP.md#-production-setup).
 
 **Services:** All 8 services running and healthy (Backend, Redis, Nginx, Worker, Prometheus, Grafana, Loki, Promtail)
 
-**Features:** Upload, Transcoding, Media Delivery, Audit Logging, Metrics, Log Aggregation
+**Features:** Upload, Transcoding, Media Delivery, Audit Logging, Metrics, Log Aggregation, User Authentication (SSO), Video Management
 
 **Data Persistence:** 6 volumes configured (media, redis, prometheus, grafana, loki, nginx-cache)
 
