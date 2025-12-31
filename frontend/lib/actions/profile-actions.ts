@@ -71,29 +71,6 @@ export const listAccounts = async () => {
 };
 
 /**
- * Link a social account to the user
- * Returns a URL to redirect to for OAuth flow
- */
-export const linkSocial = async (data: {
-  provider: "google" | "github";
-  callbackURL?: string;
-}) => {
-  await requireAuth();
-
-  // For account linking, we need to use signInSocial with a special flag
-  // Better Auth handles linking automatically if the email matches
-  const result = await auth.api.signInSocial({
-    body: {
-      provider: data.provider,
-      callbackURL: data.callbackURL || "/profile",
-    },
-    headers: await headers(),
-  });
-
-  return result;
-};
-
-/**
  * Unlink an account from the user
  */
 export const unlinkAccount = async (data: {

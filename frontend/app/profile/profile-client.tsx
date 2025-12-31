@@ -19,7 +19,6 @@ import {
   updateUser,
   changePassword,
   listAccounts,
-  linkSocial,
   unlinkAccount,
   deleteUser,
 } from "@/lib/actions/profile-actions";
@@ -29,7 +28,6 @@ import { useRouter } from "next/navigation";
 import {
   Edit,
   Lock,
-  Link as LinkIcon,
   Unlink,
   Trash2,
   Loader2,
@@ -50,7 +48,6 @@ const profileUpdateSchema = z.object({
     .optional()
     .or(z.literal("")),
   image: z
-    .string()
     .url("Invalid URL")
     .optional()
     .or(z.literal("")),
@@ -104,7 +101,6 @@ export default function ProfileClient({ session }: { session: Session }) {
   // Dialog states
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [linkAccountOpen, setLinkAccountOpen] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   // Load accounts on mount
@@ -298,25 +294,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     }
   };
 
-  const handleLinkSocial = async (provider: "google" | "github") => {
-    setLoading(true);
-    try {
-      const result = await linkSocial({
-        provider,
-        callbackURL: "/profile",
-      });
-      if (result?.url) {
-        window.location.href = result.url;
-      } else {
-        toast.error("Failed to initiate account linking");
-      }
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to link account");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleUnlinkAccount = async (providerId: string) => {
     if (accounts.length <= 1) {
       toast.error("Cannot unlink your only account");
@@ -383,12 +360,6 @@ export default function ProfileClient({ session }: { session: Session }) {
 
   const hasCredentialAccount = accounts.some(
     (acc) => acc.providerId === "credential"
-  );
-  const hasGoogleAccount = accounts.some(
-    (acc) => acc.providerId === "google"
-  );
-  const hasGithubAccount = accounts.some(
-    (acc) => acc.providerId === "github"
   );
 
   return (
@@ -730,51 +701,6 @@ export default function ProfileClient({ session }: { session: Session }) {
               <h2 className="text-xl font-semibold text-card-foreground">
                 Linked Accounts
               </h2>
-              <Dialog open={linkAccountOpen} onOpenChange={setLinkAccountOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <LinkIcon className="h-4 w-4 mr-2" />
-                    Link Account
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Link Social Account</DialogTitle>
-                    <DialogDescription>
-                      Connect a social account to your profile
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    {!hasGoogleAccount && (
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => handleLinkSocial("google")}
-                        disabled={loading}
-                      >
-                        <span className="mr-2">🔵</span>
-                        Link Google Account
-                      </Button>
-                    )}
-                    {!hasGithubAccount && (
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start"
-                        onClick={() => handleLinkSocial("github")}
-                        disabled={loading}
-                      >
-                        <Github className="h-4 w-4 mr-2" />
-                        Link GitHub Account
-                      </Button>
-                    )}
-                    {hasGoogleAccount && hasGithubAccount && (
-                      <p className="text-sm text-muted-foreground text-center">
-                        All available accounts are linked
-                      </p>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
             </div>
             <div className="space-y-3">
               {accounts.length === 0 ? (

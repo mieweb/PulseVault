@@ -46,9 +46,8 @@ const signUpSchema = z
       .max(50, "Max 50 characters")
       .regex(/^[a-zA-Z\s'-]+$/, "Letters only"),
     email: z
-      .string()
-      .min(1, "Required")
       .email("Invalid email")
+      .min(1, "Required")
       .max(255, "Too long"),
     password: z
       .string()
