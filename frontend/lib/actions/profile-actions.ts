@@ -16,18 +16,16 @@ async function requireAuth() {
 }
 
 /**
- * Update user information (name, image)
+ * Update user information (name only)
  */
 export const updateUser = async (data: {
   name?: string;
-  image?: string;
 }) => {
   await requireAuth();
 
   const result = await auth.api.updateUser({
     body: {
       name: data.name,
-      image: data.image,
     },
     headers: await headers(),
   });

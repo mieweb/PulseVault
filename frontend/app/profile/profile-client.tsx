@@ -44,10 +44,6 @@ const profileUpdateSchema = z.object({
     .regex(/^[a-zA-Z\s'-]+$/, "Letters only")
     .optional()
     .or(z.literal("")),
-  image: z
-    .url("Invalid URL")
-    .optional()
-    .or(z.literal("")),
 });
 
 type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
@@ -60,7 +56,6 @@ export default function ProfileClient({ session }: { session: Session }) {
 
   // Form states
   const [name, setName] = useState(session.user.name || "");
-  const [imageUrl, setImageUrl] = useState(session.user.image || "");
 
   // Validation errors
   const [profileErrors, setProfileErrors] = useState<
@@ -133,7 +128,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     try {
       profileUpdateSchema.parse({
         name: name.trim() || undefined,
-        image: imageUrl.trim() || undefined,
       });
       setProfileErrors({});
       return true;
@@ -168,7 +162,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     try {
       const result = await updateUser({
         name: name.trim() || undefined,
-        image: imageUrl.trim() || undefined,
       });
       if (result) {
         toast.success("Profile updated successfully");
@@ -315,7 +308,7 @@ export default function ProfileClient({ session }: { session: Session }) {
                   <DialogHeader>
                     <DialogTitle>Edit Profile</DialogTitle>
                     <DialogDescription>
-                      Update your name and profile picture
+                      Update your name
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -338,41 +331,6 @@ export default function ProfileClient({ session }: { session: Session }) {
                         </p>
                       )}
                     </div>
-                    <div>
-                      <Label htmlFor="image">Profile Image URL</Label>
-                      <Input
-                        id="image"
-                        value={imageUrl}
-                        onChange={(e) => {
-                          setImageUrl(e.target.value);
-                          if (e.target.value) {
-                            validateProfileField("image", e.target.value);
-                          } else {
-                            setProfileErrors((prev) => ({
-                              ...prev,
-                              image: undefined,
-                            }));
-                          }
-                        }}
-                        onBlur={() => {
-                          if (imageUrl) {
-                            validateProfileField("image", imageUrl);
-                          }
-                        }}
-                        placeholder="https://example.com/image.jpg"
-                        className={cn(profileErrors.image && "border-destructive")}
-                      />
-                      {profileErrors.image && (
-                        <p className="text-sm text-destructive mt-1">
-                          {profileErrors.image}
-                        </p>
-                      )}
-                      {!profileErrors.image && imageUrl && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Valid image URL
-                        </p>
-                      )}
-                    </div>
                   </div>
                   <DialogFooter>
                     <Button
@@ -382,7 +340,6 @@ export default function ProfileClient({ session }: { session: Session }) {
                         setProfileErrors({});
                         // Reset to original values
                         setName(session.user.name || "");
-                        setImageUrl(session.user.image || "");
                       }}
                     >
                       Cancel
@@ -532,7 +489,7 @@ export default function ProfileClient({ session }: { session: Session }) {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Permanently delete your account and all associated data.
-                    This action cannot be undone.
+                    This action cannot be undone. Note: Uploaded videos will not be deleted.
                   </p>
                 </div>
                 <Dialog
@@ -552,7 +509,7 @@ export default function ProfileClient({ session }: { session: Session }) {
                       </DialogTitle>
                       <DialogDescription>
                         This action cannot be undone. This will permanently
-                        delete your account and all associated data.
+                        delete your account and all associated data. Note: Uploaded videos will not be deleted.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
