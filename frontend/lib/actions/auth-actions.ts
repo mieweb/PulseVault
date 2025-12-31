@@ -16,7 +16,7 @@ export const signUp = async (
       name,
       password,
       image,
-      callbackURL: "/email-verified",
+      callbackURL: "/dashboard",
     },
   });
   return result;

@@ -36,6 +36,48 @@ import {
   Shield,
   Github,
 } from "lucide-react";
+import { z } from "zod";
+import { cn } from "@/lib/utils";
+
+// Zod validation schema for profile update
+const profileUpdateSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Required")
+    .min(2, "Min 2 characters")
+    .max(100, "Max 100 characters")
+    .regex(/^[a-zA-Z\s'-]+$/, "Letters only")
+    .optional()
+    .or(z.literal("")),
+  image: z
+    .string()
+    .url("Invalid URL")
+    .optional()
+    .or(z.literal("")),
+});
+
+// Zod validation schema for password change
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Required"),
+    newPassword: z
+      .string()
+      .min(1, "Required")
+      .min(8, "Min 8 characters")
+      .max(100, "Too long")
+      .regex(/[A-Z]/, "Need uppercase")
+      .regex(/[a-z]/, "Need lowercase")
+      .regex(/[0-9]/, "Need number")
+      .regex(/[^A-Za-z0-9]/, "Need special char"),
+    confirmPassword: z.string().min(1, "Required"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
+type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
+type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 
 export default function ProfileClient({ session }: { session: Session }) {
   const router = useRouter();
@@ -51,6 +93,14 @@ export default function ProfileClient({ session }: { session: Session }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
 
+  // Validation errors
+  const [profileErrors, setProfileErrors] = useState<
+    Partial<Record<keyof ProfileUpdateFormData, string>>
+  >({});
+  const [passwordErrors, setPasswordErrors] = useState<
+    Partial<Record<keyof ChangePasswordFormData, string>>
+  >({});
+
   // Dialog states
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -65,8 +115,11 @@ export default function ProfileClient({ session }: { session: Session }) {
   const loadAccounts = async () => {
     try {
       const result = await listAccounts();
-      if (result?.data) {
-        setAccounts(result.data);
+      // listAccounts returns an array directly, not wrapped in data
+      if (Array.isArray(result)) {
+        setAccounts(result);
+      } else if (result && typeof result === "object" && "data" in result) {
+        setAccounts((result as any).data);
       }
     } catch (error) {
       console.error("Failed to load accounts:", error);
@@ -86,7 +139,67 @@ export default function ProfileClient({ session }: { session: Session }) {
     return session.user.email?.[0].toUpperCase() || "U";
   };
 
+  const validateProfileField = (
+    field: keyof ProfileUpdateFormData,
+    value: string
+  ) => {
+    try {
+      const fieldSchema = profileUpdateSchema.shape[field];
+      if (fieldSchema) {
+        // For optional fields, allow empty strings
+        if (value === "") {
+          setProfileErrors((prev) => ({ ...prev, [field]: undefined }));
+          return;
+        }
+        fieldSchema.parse(value);
+        setProfileErrors((prev) => ({ ...prev, [field]: undefined }));
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldError = error.issues.find((issue) => issue.path[0] === field);
+        setProfileErrors((prev) => ({
+          ...prev,
+          [field]: fieldError?.message,
+        }));
+      }
+    }
+  };
+
+  const validateProfileForm = (): boolean => {
+    try {
+      profileUpdateSchema.parse({
+        name: name.trim() || undefined,
+        image: imageUrl.trim() || undefined,
+      });
+      setProfileErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Partial<
+          Record<keyof ProfileUpdateFormData, string>
+        > = {};
+        error.issues.forEach((issue) => {
+          const path = issue.path[0] as keyof ProfileUpdateFormData;
+          if (path) {
+            fieldErrors[path] = issue.message;
+          }
+        });
+        setProfileErrors(fieldErrors);
+
+        const firstError = error.issues[0];
+        if (firstError) {
+          toast.error(firstError.message);
+        }
+      }
+      return false;
+    }
+  };
+
   const handleUpdateProfile = async () => {
+    if (!validateProfileForm()) {
+      return;
+    }
+
     setLoading(true);
     try {
       const result = await updateUser({
@@ -96,6 +209,7 @@ export default function ProfileClient({ session }: { session: Session }) {
       if (result) {
         toast.success("Profile updated successfully");
         setEditProfileOpen(false);
+        setProfileErrors({});
         router.refresh();
       }
     } catch (error: any) {
@@ -105,15 +219,63 @@ export default function ProfileClient({ session }: { session: Session }) {
     }
   };
 
+  const validatePasswordField = (
+    field: keyof ChangePasswordFormData,
+    value: string
+  ) => {
+    try {
+      const fieldSchema = changePasswordSchema.shape[field];
+      if (fieldSchema) {
+        fieldSchema.parse(value);
+        setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldError = error.issues.find((issue) => issue.path[0] === field);
+        setPasswordErrors((prev) => ({
+          ...prev,
+          [field]: fieldError?.message,
+        }));
+      }
+    }
+  };
+
+  const validatePasswordForm = (): boolean => {
+    try {
+      changePasswordSchema.parse({
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      });
+      setPasswordErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Partial<
+          Record<keyof ChangePasswordFormData, string>
+        > = {};
+        error.issues.forEach((issue) => {
+          const path = issue.path[0] as keyof ChangePasswordFormData;
+          if (path) {
+            fieldErrors[path] = issue.message;
+          }
+        });
+        setPasswordErrors(fieldErrors);
+
+        const firstError = error.issues[0];
+        if (firstError) {
+          toast.error(firstError.message);
+        }
+      }
+      return false;
+    }
+  };
+
   const handleChangePassword = async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
+    if (!validatePasswordForm()) {
       return;
     }
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
+
     setLoading(true);
     try {
       const result = await changePassword({
@@ -127,6 +289,7 @@ export default function ProfileClient({ session }: { session: Session }) {
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
+        setPasswordErrors({});
       }
     } catch (error: any) {
       toast.error(error?.message || "Failed to change password");
@@ -241,7 +404,7 @@ export default function ProfileClient({ session }: { session: Session }) {
           </div>
 
           {/* Profile Picture & Name Section */}
-          <div className="border-b border-border pb-6">
+          <div className="pb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-card-foreground">
                 Profile Information
@@ -266,24 +429,66 @@ export default function ProfileClient({ session }: { session: Session }) {
                       <Input
                         id="name"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          validateProfileField("name", e.target.value);
+                        }}
+                        onBlur={() => validateProfileField("name", name)}
                         placeholder="Your name"
+                        className={cn(profileErrors.name && "border-destructive")}
                       />
+                      {profileErrors.name && (
+                        <p className="text-sm text-destructive mt-1">
+                          {profileErrors.name}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="image">Profile Image URL</Label>
                       <Input
                         id="image"
                         value={imageUrl}
-                        onChange={(e) => setImageUrl(e.target.value)}
+                        onChange={(e) => {
+                          setImageUrl(e.target.value);
+                          if (e.target.value) {
+                            validateProfileField("image", e.target.value);
+                          } else {
+                            setProfileErrors((prev) => ({
+                              ...prev,
+                              image: undefined,
+                            }));
+                          }
+                        }}
+                        onBlur={() => {
+                          if (imageUrl) {
+                            validateProfileField("image", imageUrl);
+                          }
+                        }}
                         placeholder="https://example.com/image.jpg"
+                        className={cn(profileErrors.image && "border-destructive")}
                       />
+                      {profileErrors.image && (
+                        <p className="text-sm text-destructive mt-1">
+                          {profileErrors.image}
+                        </p>
+                      )}
+                      {!profileErrors.image && imageUrl && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Valid image URL
+                        </p>
+                      )}
                     </div>
                   </div>
                   <DialogFooter>
                     <Button
                       variant="outline"
-                      onClick={() => setEditProfileOpen(false)}
+                      onClick={() => {
+                        setEditProfileOpen(false);
+                        setProfileErrors({});
+                        // Reset to original values
+                        setName(session.user.name || "");
+                        setImageUrl(session.user.image || "");
+                      }}
                     >
                       Cancel
                     </Button>
@@ -319,7 +524,7 @@ export default function ProfileClient({ session }: { session: Session }) {
           </div>
 
           {/* Account Information */}
-          <div className="border-b border-border pb-6">
+          <div className="pb-6">
             <h2 className="text-xl font-semibold text-card-foreground mb-4">
               Account Information
             </h2>
@@ -373,7 +578,7 @@ export default function ProfileClient({ session }: { session: Session }) {
 
           {/* Password Section */}
           {hasCredentialAccount && (
-            <div className="border-b border-border pb-6">
+            <div className="pb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-card-foreground">
                   Password
@@ -402,9 +607,23 @@ export default function ProfileClient({ session }: { session: Session }) {
                           id="currentPassword"
                           type="password"
                           value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          onChange={(e) => {
+                            setCurrentPassword(e.target.value);
+                            validatePasswordField("currentPassword", e.target.value);
+                          }}
+                          onBlur={() =>
+                            validatePasswordField("currentPassword", currentPassword)
+                          }
                           placeholder="Enter current password"
+                          className={cn(
+                            passwordErrors.currentPassword && "border-destructive"
+                          )}
                         />
+                        {passwordErrors.currentPassword && (
+                          <p className="text-sm text-destructive mt-1">
+                            {passwordErrors.currentPassword}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="newPassword">New Password</Label>
@@ -412,9 +631,35 @@ export default function ProfileClient({ session }: { session: Session }) {
                           id="newPassword"
                           type="password"
                           value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value);
+                            validatePasswordField("newPassword", e.target.value);
+                            // Re-validate password confirmation if it has a value
+                            if (confirmPassword) {
+                              validatePasswordField("confirmPassword", confirmPassword);
+                            }
+                          }}
+                          onBlur={() => {
+                            validatePasswordField("newPassword", newPassword);
+                            if (confirmPassword) {
+                              validatePasswordField("confirmPassword", confirmPassword);
+                            }
+                          }}
                           placeholder="Enter new password"
+                          className={cn(
+                            passwordErrors.newPassword && "border-destructive"
+                          )}
                         />
+                        {passwordErrors.newPassword && (
+                          <p className="text-sm text-destructive mt-1">
+                            {passwordErrors.newPassword}
+                          </p>
+                        )}
+                        {!passwordErrors.newPassword && newPassword && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Min 8 chars: uppercase, lowercase, number, special char
+                          </p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="confirmPassword">
@@ -424,15 +669,42 @@ export default function ProfileClient({ session }: { session: Session }) {
                           id="confirmPassword"
                           type="password"
                           value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            validatePasswordField("confirmPassword", e.target.value);
+                            // Re-validate new password to check match
+                            if (newPassword) {
+                              validatePasswordField("newPassword", newPassword);
+                            }
+                          }}
+                          onBlur={() => {
+                            validatePasswordField("confirmPassword", confirmPassword);
+                            if (newPassword) {
+                              validatePasswordField("newPassword", newPassword);
+                            }
+                          }}
                           placeholder="Confirm new password"
+                          className={cn(
+                            passwordErrors.confirmPassword && "border-destructive"
+                          )}
                         />
+                        {passwordErrors.confirmPassword && (
+                          <p className="text-sm text-destructive mt-1">
+                            {passwordErrors.confirmPassword}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <DialogFooter>
                       <Button
                         variant="outline"
-                        onClick={() => setChangePasswordOpen(false)}
+                        onClick={() => {
+                          setChangePasswordOpen(false);
+                          setCurrentPassword("");
+                          setNewPassword("");
+                          setConfirmPassword("");
+                          setPasswordErrors({});
+                        }}
                       >
                         Cancel
                       </Button>
@@ -453,7 +725,7 @@ export default function ProfileClient({ session }: { session: Session }) {
           )}
 
           {/* Linked Accounts */}
-          <div className="border-b border-border pb-6">
+          <div className="pb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-card-foreground">
                 Linked Accounts
@@ -545,7 +817,7 @@ export default function ProfileClient({ session }: { session: Session }) {
           </div>
 
           {/* Danger Zone */}
-          <div className="border-t border-destructive/20 pt-6">
+          <div className="pt-6">
             <h2 className="text-xl font-semibold text-destructive mb-4">
               Danger Zone
             </h2>
@@ -567,7 +839,7 @@ export default function ProfileClient({ session }: { session: Session }) {
                   <DialogTrigger asChild>
                     <Button variant="destructive" size="sm">
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Account
+                      Delete
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
@@ -611,7 +883,7 @@ export default function ProfileClient({ session }: { session: Session }) {
                         {loading ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : null}
-                        Delete Account
+                        Delete
                       </Button>
                     </DialogFooter>
                   </DialogContent>

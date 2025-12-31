@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { signIn, signUp, signInWithSocial } from "@/lib/actions/auth-actions";
+import { z } from "zod";
 
 async function convertImageToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,6 +29,71 @@ async function convertImageToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+// Zod validation schema for signup
+const signUpSchema = z
+  .object({
+    firstName: z
+      .string()
+      .min(1, "Required")
+      .min(2, "Min 2 characters")
+      .max(50, "Max 50 characters")
+      .regex(/^[a-zA-Z\s'-]+$/, "Letters only"),
+    lastName: z
+      .string()
+      .min(1, "Required")
+      .min(2, "Min 2 characters")
+      .max(50, "Max 50 characters")
+      .regex(/^[a-zA-Z\s'-]+$/, "Letters only"),
+    email: z
+      .string()
+      .min(1, "Required")
+      .email("Invalid email")
+      .max(255, "Too long"),
+    password: z
+      .string()
+      .min(1, "Required")
+      .min(8, "Min 8 characters")
+      .max(100, "Too long")
+      .regex(/[A-Z]/, "Need uppercase")
+      .regex(/[a-z]/, "Need lowercase")
+      .regex(/[0-9]/, "Need number")
+      .regex(/[^A-Za-z0-9]/, "Need special char"),
+    passwordConfirmation: z.string().min(1, "Required"),
+    image: z.instanceof(File).optional().nullable(),
+  })
+  .refine((data) => data.password === data.passwordConfirmation, {
+    message: "Passwords don't match",
+    path: ["passwordConfirmation"],
+  })
+  .refine(
+    (data) => {
+      if (data.image) {
+        const maxSize = 3 * 1024 * 1024; // 3MB
+        return data.image.size <= maxSize;
+      }
+      return true;
+    },
+    {
+      message: "Max 3MB",
+      path: ["image"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.image) {
+        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+        return allowedTypes.includes(data.image.type);
+      }
+      return true;
+    },
+    {
+      message: "Invalid image type",
+      path: ["image"],
+    }
+  );
+
+type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export default function AuthClient() {
   const [isSignIn, setIsSignIn] = useState(true);
@@ -42,6 +108,9 @@ export default function AuthClient() {
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Validation errors
+  const [errors, setErrors] = useState<Partial<Record<keyof SignUpFormData, string>>>({});
 
   // Sign in state
   const [rememberMe, setRememberMe] = useState(false);
@@ -49,19 +118,71 @@ export default function AuthClient() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file size (max 3MB to match server limit)
-      const maxSize = 3 * 1024 * 1024; // 3MB in bytes
-      if (file.size > maxSize) {
-        toast.error("Image size must be less than 3MB");
-        e.target.value = ""; // Reset input
-        return;
-      }
       setImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Clear image error if file is selected
+      if (errors.image) {
+        setErrors((prev) => ({ ...prev, image: undefined }));
+      }
+    } else {
+      setImage(null);
+      setImagePreview(null);
+    }
+  };
+
+  const validateField = (field: keyof SignUpFormData, value: any) => {
+    try {
+      const fieldSchema = signUpSchema.shape[field];
+      if (fieldSchema) {
+        fieldSchema.parse(value);
+        setErrors((prev) => ({ ...prev, [field]: undefined }));
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldError = error.issues.find((issue) => issue.path[0] === field);
+        setErrors((prev) => ({
+          ...prev,
+          [field]: fieldError?.message,
+        }));
+      }
+    }
+  };
+
+  const validateForm = (): boolean => {
+    try {
+      signUpSchema.parse({
+        firstName,
+        lastName,
+        email,
+        password,
+        passwordConfirmation,
+        image,
+      });
+      setErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Partial<Record<keyof SignUpFormData, string>> = {};
+        error.issues.forEach((issue) => {
+          const path = issue.path[0] as keyof SignUpFormData;
+          if (path) {
+            fieldErrors[path] = issue.message;
+          }
+        });
+        setErrors(fieldErrors);
+        
+        // Show first error in toast
+        const firstError = error.issues[0];
+        if (firstError) {
+          toast.error(firstError.message);
+        }
+      }
+      return false;
     }
   };
 
@@ -220,6 +341,10 @@ export default function AuthClient() {
                       if (result && result.user) {
                         toast.success("Signed in successfully");
                         router.push("/dashboard");
+                        // Refresh server components after navigation to update session
+                        setTimeout(() => {
+                          router.refresh();
+                        }, 100);
                       }
                     } catch (error: any) {
                       toast.error(error?.message || "Failed to sign in");
@@ -335,9 +460,15 @@ export default function AuthClient() {
                       required
                       onChange={(e) => {
                         setFirstName(e.target.value);
+                        validateField("firstName", e.target.value);
                       }}
+                      onBlur={() => validateField("firstName", firstName)}
                       value={firstName}
+                      className={errors.firstName ? "border-destructive" : ""}
                     />
+                    {errors.firstName && (
+                      <p className="text-sm text-destructive">{errors.firstName}</p>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="last-name">Last name</Label>
@@ -347,9 +478,15 @@ export default function AuthClient() {
                       required
                       onChange={(e) => {
                         setLastName(e.target.value);
+                        validateField("lastName", e.target.value);
                       }}
+                      onBlur={() => validateField("lastName", lastName)}
                       value={lastName}
+                      className={errors.lastName ? "border-destructive" : ""}
                     />
+                    {errors.lastName && (
+                      <p className="text-sm text-destructive">{errors.lastName}</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid gap-2">
@@ -361,9 +498,15 @@ export default function AuthClient() {
                     required
                     onChange={(e) => {
                       setEmail(e.target.value);
+                      validateField("email", e.target.value);
                     }}
+                    onBlur={() => validateField("email", email)}
                     value={email}
+                    className={errors.email ? "border-destructive" : ""}
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Password</Label>
@@ -371,10 +514,27 @@ export default function AuthClient() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      validateField("password", e.target.value);
+                      // Re-validate password confirmation if it has a value
+                      if (passwordConfirmation) {
+                        validateField("passwordConfirmation", passwordConfirmation);
+                      }
+                    }}
+                    onBlur={() => validateField("password", password)}
                     autoComplete="new-password"
                     placeholder="Password"
+                    className={errors.password ? "border-destructive" : ""}
                   />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                  {!errors.password && password && (
+                    <p className="text-xs text-muted-foreground">
+                      Min 8 chars: uppercase, lowercase, number, special char
+                    </p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password_confirmation">
@@ -384,10 +544,27 @@ export default function AuthClient() {
                     id="password_confirmation"
                     type="password"
                     value={passwordConfirmation}
-                    onChange={(e) => setPasswordConfirmation(e.target.value)}
+                    onChange={(e) => {
+                      setPasswordConfirmation(e.target.value);
+                      // Re-validate password match when confirmation changes
+                      if (password) {
+                        validateField("passwordConfirmation", e.target.value);
+                      }
+                    }}
+                    onBlur={() => {
+                      validateField("passwordConfirmation", passwordConfirmation);
+                      // Also re-validate password to check match
+                      if (password) {
+                        validateField("password", password);
+                      }
+                    }}
                     autoComplete="new-password"
                     placeholder="Confirm Password"
+                    className={errors.passwordConfirmation ? "border-destructive" : ""}
                   />
+                  {errors.passwordConfirmation && (
+                    <p className="text-sm text-destructive">{errors.passwordConfirmation}</p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="image">Profile Image (optional)</Label>
@@ -406,9 +583,9 @@ export default function AuthClient() {
                       <Input
                         id="image"
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                         onChange={handleImageChange}
-                        className="w-full"
+                        className={cn("w-full", errors.image && "border-destructive")}
                       />
                       {imagePreview && (
                         <X
@@ -416,21 +593,26 @@ export default function AuthClient() {
                           onClick={() => {
                             setImage(null);
                             setImagePreview(null);
+                            setErrors((prev) => ({ ...prev, image: undefined }));
                           }}
                         />
                       )}
                     </div>
                   </div>
+                  {errors.image && (
+                    <p className="text-sm text-destructive">{errors.image}</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
                   className="w-full"
                   disabled={loading}
                   onClick={async () => {
-                    if (password !== passwordConfirmation) {
-                      toast.error("Passwords do not match");
+                    // Validate form before submission
+                    if (!validateForm()) {
                       return;
                     }
+
                     setLoading(true);
                     try {
                       // Convert image to base64 if provided
@@ -447,6 +629,10 @@ export default function AuthClient() {
                       if (result && result.user) {
                         toast.success("Account created successfully");
                         router.push("/dashboard");
+                        // Refresh server components after navigation to update session
+                        setTimeout(() => {
+                          router.refresh();
+                        }, 100);
                       }
                     } catch (error: any) {
                       toast.error(error?.message || "Failed to sign up");

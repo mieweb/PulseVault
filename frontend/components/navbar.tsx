@@ -103,20 +103,17 @@ export default function Navbar({ session }: { session?: Session | null }) {
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="outline"
-                        className="relative h-10 w-auto px-2 gap-2 border-border hover:bg-muted"
+                        className="relative h-10 w-10 p-1.5 border-border hover:bg-muted"
                       >
-                        <Avatar className="h-6 w-6">
+                        <Avatar className="h-7 w-7">
                           <AvatarImage
                             src={session.user.image || undefined}
                             alt={session.user.name || session.user.email || "User"}
                           />
-                          <AvatarFallback className="text-[10px]">
+                          <AvatarFallback className="text-xs">
                             {getUserInitials()}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="hidden sm:inline-block text-sm font-medium">
-                          {session.user.name || session.user.email}
-                        </span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-56" align="end">
