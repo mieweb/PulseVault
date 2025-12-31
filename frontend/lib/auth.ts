@@ -8,9 +8,11 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  emailAndPassword: {
-    enabled: true,
-    async sendResetPassword(data, request) {},
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    }
   },
   socialProviders: {
     google: {
@@ -20,6 +22,16 @@ export const auth = betterAuth({
     github: {
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+  },
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
+  account: {
+    accountLinking: {
+      enabled: true,
     },
   },
   plugins: [admin(), nextCookies()]
