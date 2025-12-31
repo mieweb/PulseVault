@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PulseVault - Secure Video Storage & Delivery",
+  title: "Vitals - Secure Video Storage & Delivery",
   description:
     "HIPAA-compliant, self-hosted solution for capturing, processing, and sharing encrypted video and data in healthcare and research environments",
 };

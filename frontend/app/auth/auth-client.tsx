@@ -19,7 +19,7 @@ export default function AuthClient() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - PulseVault Content */}
+      {/* Left Side - Vitals Content */}
       <div className="hidden lg:flex lg:w-1/2 bg-background p-12 flex-col justify-center text-foreground relative overflow-hidden">
         {/* Grid Pattern Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
@@ -30,10 +30,10 @@ export default function AuthClient() {
         <div className="max-w-lg relative z-10">
           <div className="mb-8">
             <h1 className="text-5xl font-bold mb-4 text-foreground">
-              Pulse<span className="text-destructive">Vault</span>
+              <span className="text-white">Vi</span><span className="text-destructive">tals</span>
             </h1>
             <p className="text-xl text-muted-foreground">
-              Secure video storage and delivery for healthcare and research
+              Upload, view, and manage short-form videos for healthcare and research
             </p>
           </div>
 
@@ -58,10 +58,10 @@ export default function AuthClient() {
               </div>
               <div>
                 <h3 className="font-semibold text-lg mb-1 text-foreground">
-                  Adaptive Streaming
+                  Short-Form Video Feed
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  Automatic transcoding for optimal playback experience
+                  Browse and view short-form videos in an infinite scrolling feed
                 </p>
               </div>
             </div>
@@ -86,10 +86,10 @@ export default function AuthClient() {
               </div>
               <div>
                 <h3 className="font-semibold text-lg mb-1 text-foreground">
-                  Resumable Uploads
+                  Easy Video Upload
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  Reliable large-file transfers with automatic resume
+                  Upload videos directly from your browser with resumable uploads
                 </p>
               </div>
             </div>
@@ -99,7 +99,7 @@ export default function AuthClient() {
             <Heart className="w-4 h-4 fill-destructive text-destructive" />
             <span>
               Your data has a heartbeat.{" "}
-              <span className="text-destructive">PulseVault</span> protects it.
+              <span className="text-white">Vi</span><span className="text-destructive">tals</span> makes it visible.
             </span>
           </div>
         </div>

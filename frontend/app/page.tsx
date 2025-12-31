@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import GridBackgroundDemo from "@/components/ui/grid-background-demo";
+import AnimatedTitle from "@/components/animated-title";
 import {
   Shield,
   Video,
@@ -17,6 +18,18 @@ import {
 export default function Home() {
   const features = [
     {
+      icon: Video,
+      title: "Short-Form Video Feed",
+      description:
+        "View and browse short-form videos in an infinite scrolling feed. Perfect for quick knowledge sharing and content discovery.",
+    },
+    {
+      icon: Zap,
+      title: "Easy Video Upload",
+      description:
+        "Upload videos directly from your browser with resumable uploads. Handle large files reliably with automatic progress tracking.",
+    },
+    {
       icon: Shield,
       title: "HIPAA Compliant",
       description:
@@ -26,7 +39,7 @@ export default function Home() {
       icon: Video,
       title: "Adaptive Streaming",
       description:
-        "Automatic transcoding to HLS/DASH formats with multiple quality renditions.",
+        "Automatic transcoding to HLS/DASH formats with multiple quality renditions for optimal playback.",
     },
     {
       icon: Lock,
@@ -35,22 +48,10 @@ export default function Home() {
         "HMAC-signed URLs with configurable expiry. No PHI in logs or URLs.",
     },
     {
-      icon: Zap,
-      title: "Resumable Uploads",
-      description:
-        "Reliable large-file transfers using the tus protocol. Handle uploads up to 2GB+.",
-    },
-    {
       icon: Database,
       title: "Self-Hosted",
       description:
         "Complete control over your data. Deploy on-premise or in your own cloud.",
-    },
-    {
-      icon: Cloud,
-      title: "Observability",
-      description:
-        "Built-in metrics, logging, and monitoring with Prometheus, Grafana, and Loki.",
     },
   ];
 
@@ -72,19 +73,16 @@ export default function Home() {
               </span>
             </div>
 
-            <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold mb-6 sm:mb-8 text-foreground leading-tight">
-              Pulse<span className="text-destructive">Vault</span>
-            </h1>
+            <AnimatedTitle />
 
             <p className="text-2xl sm:text-3xl md:text-4xl text-muted-foreground mb-6 sm:mb-8 max-w-3xl mx-auto font-semibold leading-tight">
-              Secure video storage and delivery for
+              Upload, view, and manage short-form videos for
               <span className="text-destructive"> healthcare</span> and
               <span className="text-destructive"> research</span>
             </p>
 
             <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-10 sm:mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-              HIPAA-compliant, self-hosted solution for capturing, processing, and
-              sharing encrypted video and data
+              HIPAA-compliant platform for uploading short-form videos, viewing them in an infinite feed, and securely sharing encrypted content
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -142,7 +140,7 @@ export default function Home() {
                   </h2>
                 </div>
                 <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Join healthcare and research teams using PulseVault to securely
+                  Join healthcare and research teams using <span className="text-white">Vi</span><span className="text-destructive">tals</span> to securely
                   manage their video data
                 </p>
                 <Button
