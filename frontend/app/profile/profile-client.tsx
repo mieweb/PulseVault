@@ -17,7 +17,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   updateUser,
-  changePassword,
   listAccounts,
   unlinkAccount,
   deleteUser,
@@ -27,7 +26,6 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Edit,
-  Lock,
   Unlink,
   Trash2,
   Loader2,
@@ -52,28 +50,7 @@ const profileUpdateSchema = z.object({
     .or(z.literal("")),
 });
 
-// Zod validation schema for password change
-const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Required"),
-    newPassword: z
-      .string()
-      .min(1, "Required")
-      .min(8, "Min 8 characters")
-      .max(100, "Too long")
-      .regex(/[A-Z]/, "Need uppercase")
-      .regex(/[a-z]/, "Need lowercase")
-      .regex(/[0-9]/, "Need number")
-      .regex(/[^A-Za-z0-9]/, "Need special char"),
-    confirmPassword: z.string().min(1, "Required"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
-
 type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
-type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 
 export default function ProfileClient({ session }: { session: Session }) {
   const router = useRouter();
@@ -84,22 +61,14 @@ export default function ProfileClient({ session }: { session: Session }) {
   // Form states
   const [name, setName] = useState(session.user.name || "");
   const [imageUrl, setImageUrl] = useState(session.user.image || "");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [deletePassword, setDeletePassword] = useState("");
 
   // Validation errors
   const [profileErrors, setProfileErrors] = useState<
     Partial<Record<keyof ProfileUpdateFormData, string>>
   >({});
-  const [passwordErrors, setPasswordErrors] = useState<
-    Partial<Record<keyof ChangePasswordFormData, string>>
-  >({});
 
   // Dialog states
   const [editProfileOpen, setEditProfileOpen] = useState(false);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   // Load accounts on mount
@@ -214,84 +183,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     }
   };
 
-  const validatePasswordField = (
-    field: keyof ChangePasswordFormData,
-    value: string
-  ) => {
-    try {
-      const fieldSchema = changePasswordSchema.shape[field];
-      if (fieldSchema) {
-        fieldSchema.parse(value);
-        setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldError = error.issues.find((issue) => issue.path[0] === field);
-        setPasswordErrors((prev) => ({
-          ...prev,
-          [field]: fieldError?.message,
-        }));
-      }
-    }
-  };
-
-  const validatePasswordForm = (): boolean => {
-    try {
-      changePasswordSchema.parse({
-        currentPassword,
-        newPassword,
-        confirmPassword,
-      });
-      setPasswordErrors({});
-      return true;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: Partial<
-          Record<keyof ChangePasswordFormData, string>
-        > = {};
-        error.issues.forEach((issue) => {
-          const path = issue.path[0] as keyof ChangePasswordFormData;
-          if (path) {
-            fieldErrors[path] = issue.message;
-          }
-        });
-        setPasswordErrors(fieldErrors);
-
-        const firstError = error.issues[0];
-        if (firstError) {
-          toast.error(firstError.message);
-        }
-      }
-      return false;
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (!validatePasswordForm()) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await changePassword({
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: false,
-      });
-      if (result) {
-        toast.success("Password changed successfully");
-        setChangePasswordOpen(false);
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        setPasswordErrors({});
-      }
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to change password");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleUnlinkAccount = async (providerId: string) => {
     if (accounts.length <= 1) {
@@ -319,7 +210,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     setLoading(true);
     try {
       const result = await deleteUser({
-        password: deletePassword || undefined,
         callbackURL: "/",
       });
       if (result) {
@@ -395,9 +285,6 @@ export default function ProfileClient({ session }: { session: Session }) {
     }
   };
 
-  const hasCredentialAccount = accounts.some(
-    (acc) => acc.providerId === "credential"
-  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -584,153 +471,6 @@ export default function ProfileClient({ session }: { session: Session }) {
             </div>
           </div>
 
-          {/* Password Section */}
-          {hasCredentialAccount && (
-            <div className="pb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-card-foreground">
-                  Password
-                </h2>
-                <Dialog
-                  open={changePasswordOpen}
-                  onOpenChange={setChangePasswordOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Lock className="h-4 w-4 mr-2" />
-                      Change Password
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Change Password</DialogTitle>
-                      <DialogDescription>
-                        Enter your current password and choose a new one
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <Input
-                          id="currentPassword"
-                          type="password"
-                          value={currentPassword}
-                          onChange={(e) => {
-                            setCurrentPassword(e.target.value);
-                            validatePasswordField("currentPassword", e.target.value);
-                          }}
-                          onBlur={() =>
-                            validatePasswordField("currentPassword", currentPassword)
-                          }
-                          placeholder="Enter current password"
-                          className={cn(
-                            passwordErrors.currentPassword && "border-destructive"
-                          )}
-                        />
-                        {passwordErrors.currentPassword && (
-                          <p className="text-sm text-destructive mt-1">
-                            {passwordErrors.currentPassword}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label htmlFor="newPassword">New Password</Label>
-                        <Input
-                          id="newPassword"
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => {
-                            setNewPassword(e.target.value);
-                            validatePasswordField("newPassword", e.target.value);
-                            // Re-validate password confirmation if it has a value
-                            if (confirmPassword) {
-                              validatePasswordField("confirmPassword", confirmPassword);
-                            }
-                          }}
-                          onBlur={() => {
-                            validatePasswordField("newPassword", newPassword);
-                            if (confirmPassword) {
-                              validatePasswordField("confirmPassword", confirmPassword);
-                            }
-                          }}
-                          placeholder="Enter new password"
-                          className={cn(
-                            passwordErrors.newPassword && "border-destructive"
-                          )}
-                        />
-                        {passwordErrors.newPassword && (
-                          <p className="text-sm text-destructive mt-1">
-                            {passwordErrors.newPassword}
-                          </p>
-                        )}
-                        {!passwordErrors.newPassword && newPassword && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Min 8 chars: uppercase, lowercase, number, special char
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label htmlFor="confirmPassword">
-                          Confirm New Password
-                        </Label>
-                        <Input
-                          id="confirmPassword"
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                            validatePasswordField("confirmPassword", e.target.value);
-                            // Re-validate new password to check match
-                            if (newPassword) {
-                              validatePasswordField("newPassword", newPassword);
-                            }
-                          }}
-                          onBlur={() => {
-                            validatePasswordField("confirmPassword", confirmPassword);
-                            if (newPassword) {
-                              validatePasswordField("newPassword", newPassword);
-                            }
-                          }}
-                          placeholder="Confirm new password"
-                          className={cn(
-                            passwordErrors.confirmPassword && "border-destructive"
-                          )}
-                        />
-                        {passwordErrors.confirmPassword && (
-                          <p className="text-sm text-destructive mt-1">
-                            {passwordErrors.confirmPassword}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setChangePasswordOpen(false);
-                          setCurrentPassword("");
-                          setNewPassword("");
-                          setConfirmPassword("");
-                          setPasswordErrors({});
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button onClick={handleChangePassword} disabled={loading}>
-                        {loading ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : null}
-                        Change Password
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Last updated: Password is encrypted and secure
-              </p>
-            </div>
-          )}
 
           {/* Linked Accounts */}
           <div className="pb-6">
@@ -815,22 +555,6 @@ export default function ProfileClient({ session }: { session: Session }) {
                         delete your account and all associated data.
                       </DialogDescription>
                     </DialogHeader>
-                    {hasCredentialAccount && (
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="deletePassword">
-                            Enter your password to confirm
-                          </Label>
-                          <Input
-                            id="deletePassword"
-                            type="password"
-                            value={deletePassword}
-                            onChange={(e) => setDeletePassword(e.target.value)}
-                            placeholder="Your password"
-                          />
-                        </div>
-                      </div>
-                    )}
                     <DialogFooter>
                       <Button
                         variant="outline"

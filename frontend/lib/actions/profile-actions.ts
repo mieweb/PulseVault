@@ -36,28 +36,6 @@ export const updateUser = async (data: {
 };
 
 /**
- * Change user password
- */
-export const changePassword = async (data: {
-  newPassword: string;
-  currentPassword: string;
-  revokeOtherSessions?: boolean;
-}) => {
-  await requireAuth();
-
-  const result = await auth.api.changePassword({
-    body: {
-      newPassword: data.newPassword,
-      currentPassword: data.currentPassword,
-      revokeOtherSessions: data.revokeOtherSessions ?? false,
-    },
-    headers: await headers(),
-  });
-
-  return result;
-};
-
-/**
  * List all accounts linked to the user
  */
 export const listAccounts = async () => {
@@ -92,17 +70,14 @@ export const unlinkAccount = async (data: {
 
 /**
  * Delete user account
- * Requires password or fresh session
  */
 export const deleteUser = async (data?: {
-  password?: string;
   callbackURL?: string;
 }) => {
   await requireAuth();
 
   const result = await auth.api.deleteUser({
     body: {
-      password: data?.password,
       callbackURL: data?.callbackURL || "/",
     },
     headers: await headers(),

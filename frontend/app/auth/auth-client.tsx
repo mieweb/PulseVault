@@ -8,183 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from "react";
-import Image from "next/image";
-import { Loader2, X, Shield, Video, Lock, Zap, Heart, Mail } from "lucide-react";
+import { Loader2, Shield, Video, Lock, Zap, Heart } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { signIn, signUp, signInWithSocial, resendVerificationEmail } from "@/lib/actions/auth-actions";
-import { z } from "zod";
-
-async function convertImageToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// Zod validation schema for signup
-const signUpSchema = z
-  .object({
-    firstName: z
-      .string()
-      .min(1, "Required")
-      .min(2, "Min 2 characters")
-      .max(50, "Max 50 characters")
-      .regex(/^[a-zA-Z\s'-]+$/, "Letters only"),
-    lastName: z
-      .string()
-      .min(1, "Required")
-      .min(2, "Min 2 characters")
-      .max(50, "Max 50 characters")
-      .regex(/^[a-zA-Z\s'-]+$/, "Letters only"),
-    email: z
-      .email("Invalid email")
-      .min(1, "Required")
-      .max(255, "Too long"),
-    password: z
-      .string()
-      .min(1, "Required")
-      .min(8, "Min 8 characters")
-      .max(100, "Too long")
-      .regex(/[A-Z]/, "Need uppercase")
-      .regex(/[a-z]/, "Need lowercase")
-      .regex(/[0-9]/, "Need number")
-      .regex(/[^A-Za-z0-9]/, "Need special char"),
-    passwordConfirmation: z.string().min(1, "Required"),
-    image: z.instanceof(File).optional().nullable(),
-  })
-  .refine((data) => data.password === data.passwordConfirmation, {
-    message: "Passwords don't match",
-    path: ["passwordConfirmation"],
-  })
-  .refine(
-    (data) => {
-      if (data.image) {
-        const maxSize = 3 * 1024 * 1024; // 3MB
-        return data.image.size <= maxSize;
-      }
-      return true;
-    },
-    {
-      message: "Max 3MB",
-      path: ["image"],
-    }
-  )
-  .refine(
-    (data) => {
-      if (data.image) {
-        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
-        return allowedTypes.includes(data.image.type);
-      }
-      return true;
-    },
-    {
-      message: "Invalid image type",
-      path: ["image"],
-    }
-  );
-
-type SignUpFormData = z.infer<typeof signUpSchema>;
+import { signInWithSocial } from "@/lib/actions/auth-actions";
 
 export default function AuthClient() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<"signIn" | "signUp" | "email-verification">("signIn");
-  const [verificationEmail, setVerificationEmail] = useState(""); // Store email for verification screen
-
-  // Sign up state
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  
-  // Validation errors
-  const [errors, setErrors] = useState<Partial<Record<keyof SignUpFormData, string>>>({});
-
-  // Sign in state
-  const [rememberMe, setRememberMe] = useState(false);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      
-      // Clear image error if file is selected
-      if (errors.image) {
-        setErrors((prev) => ({ ...prev, image: undefined }));
-      }
-    } else {
-      setImage(null);
-      setImagePreview(null);
-    }
-  };
-
-  const validateField = (field: keyof SignUpFormData, value: any) => {
-    try {
-      const fieldSchema = signUpSchema.shape[field];
-      if (fieldSchema) {
-        fieldSchema.parse(value);
-        setErrors((prev) => ({ ...prev, [field]: undefined }));
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldError = error.issues.find((issue) => issue.path[0] === field);
-        setErrors((prev) => ({
-          ...prev,
-          [field]: fieldError?.message,
-        }));
-      }
-    }
-  };
-
-  const validateForm = (): boolean => {
-    try {
-      signUpSchema.parse({
-        firstName,
-        lastName,
-        email,
-        password,
-        passwordConfirmation,
-        image,
-      });
-      setErrors({});
-      return true;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: Partial<Record<keyof SignUpFormData, string>> = {};
-        error.issues.forEach((issue) => {
-          const path = issue.path[0] as keyof SignUpFormData;
-          if (path) {
-            fieldErrors[path] = issue.message;
-          }
-        });
-        setErrors(fieldErrors);
-        
-        // Show first error in toast
-        const firstError = error.issues[0];
-        if (firstError) {
-          toast.error(firstError.message);
-        }
-      }
-      return false;
-    }
-  };
+  const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
 
   return (
     <div className="min-h-screen flex">
@@ -278,475 +109,103 @@ export default function AuthClient() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-8">
         <Card className="max-w-2xl w-full">
           <CardHeader>
-            <CardTitle className="text-lg md:text-xl">
-              {selectedTab === "signIn" 
-                ? "Sign In" 
-                : selectedTab === "signUp" 
-                ? "Sign Up" 
-                : "Verify Your Email"}
-            </CardTitle>
+            <CardTitle className="text-lg md:text-xl">Sign In</CardTitle>
             <CardDescription className="text-xs md:text-sm">
-              {selectedTab === "signIn"
-                ? "Enter your email below to login to your account"
-                : selectedTab === "signUp"
-                ? "Enter your information to create an account"
-                : "We've sent a verification link to your email address"}
+              Sign in with your social account to continue
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {selectedTab === "email-verification" ? (
-              // Email Verification Screen
-              <div className="grid gap-4">
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="p-4 bg-muted rounded-full mb-4">
-                    <Mail className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2 text-center">
-                    Check your email
-                  </h3>
-                  <p className="text-sm text-muted-foreground text-center mb-2">
-                    We've sent a verification link to
-                  </p>
-                  <p className="text-sm font-medium mb-6 text-center">
-                    {verificationEmail}
-                  </p>
-                  <p className="text-xs text-muted-foreground text-center mb-6 max-w-md">
-                    Click the link in the email to verify your account. If you don't see the email, check your spam folder.
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={loading}
-                    onClick={async () => {
-                      setLoading(true);
-                      try {
-                        await resendVerificationEmail(verificationEmail);
-                        toast.success("Verification email resent successfully");
-                      } catch (error: any) {
-                        toast.error(error?.message || "Failed to resend verification email");
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    {loading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      "Resend verification email"
-                    )}
-                  </Button>
-                  <div className="text-center text-sm text-muted-foreground mt-4">
-                    <button
-                      onClick={() => {
-                        setSelectedTab("signIn");
-                        setVerificationEmail("");
-                      }}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      Back to sign in
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : selectedTab === "signIn" ? (
-              // Sign In Form
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    onChange={(e) => setEmail(e.target.value)}
-                    value={email}
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="password"
-                    autoComplete="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="remember"
-                      onClick={() => {
-                        setRememberMe(!rememberMe);
-                      }}
-                    />
-                    <Label htmlFor="remember">Remember me</Label>
-                  </div>
-                  <Link href="#" className="text-sm underline">
-                    Forgot your password?
-                  </Link>
-                </div>
-
+            <div className="grid gap-4">
+              <div
+                className={cn(
+                  "w-full gap-2 flex items-center",
+                  "justify-between flex-col"
+                )}
+              >
                 <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
+                  variant="outline"
+                  className={cn("w-full gap-2")}
+                  disabled={loadingProvider !== null}
                   onClick={async () => {
-                    setLoading(true);
+                    setLoadingProvider("google");
                     try {
-                      const result = await signIn(email, password, rememberMe);
-                      if (result && result.user) {
-                        toast.success("Signed in successfully");
-                        router.push("/dashboard");
-                        // Refresh server components after navigation to update session
-                        setTimeout(() => {
-                          router.refresh();
-                        }, 100);
-                      }
+                      await signInWithSocial("google");
                     } catch (error: any) {
-                      const errorMessage = error?.message || error?.error?.message || "Failed to sign in";
-                      const errorCode = error?.code || error?.error?.code || "";
-                      
-                      // Check if error is about email verification
-                      // Better-auth might return codes like "EMAIL_NOT_VERIFIED" or similar messages
-                      const isEmailNotVerified = 
-                        errorCode === "EMAIL_NOT_VERIFIED" ||
-                        errorCode === "EMAIL_VERIFICATION_REQUIRED" ||
-                        (errorMessage.toLowerCase().includes("email") && 
-                         (errorMessage.toLowerCase().includes("not verified") ||
-                          errorMessage.toLowerCase().includes("unverified") ||
-                          errorMessage.toLowerCase().includes("verification required") ||
-                          errorMessage.toLowerCase().includes("verify your email")));
-                      
-                      if (isEmailNotVerified) {
-                        // Show verification screen with the email
-                        setVerificationEmail(email);
-                        setSelectedTab("email-verification");
-                        toast.error("Please verify your email address to sign in");
-                      } else {
-                        toast.error(errorMessage);
-                      }
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                >
-                  {loading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    "Login"
-                  )}
-                </Button>
-
-                <div
-                  className={cn(
-                    "w-full gap-2 flex items-center",
-                    "justify-between flex-col"
-                  )}
-                >
-                  <Button
-                    variant="outline"
-                    className={cn("w-full gap-2")}
-                    disabled={loading}
-                    onClick={async () => {
-                      setLoading(true);
-                      try {
-                        await signInWithSocial("google");
-                      } catch (error: any) {
-                        toast.error(
-                          error?.message || "Failed to sign in with Google"
-                        );
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="1em"
-                      height="1em"
-                      viewBox="0 0 256 262"
-                    >
-                      <path
-                        fill="#4285F4"
-                        d="M255.878 133.451c0-10.734-.871-18.567-2.756-26.69H130.55v48.448h71.947c-1.45 12.04-9.283 30.172-26.69 42.356l-.244 1.622l38.755 30.023l2.685.268c24.659-22.774 38.875-56.282 38.875-96.027"
-                      ></path>
-                      <path
-                        fill="#34A853"
-                        d="M130.55 261.1c35.248 0 64.839-11.605 86.453-31.622l-41.196-31.913c-11.024 7.688-25.82 13.055-45.257 13.055c-34.523 0-63.824-22.773-74.269-54.25l-1.531.13l-40.298 31.187l-.527 1.465C35.393 231.798 79.49 261.1 130.55 261.1"
-                      ></path>
-                      <path
-                        fill="#FBBC05"
-                        d="M56.281 156.37c-2.756-8.123-4.351-16.827-4.351-25.82c0-8.994 1.595-17.697 4.206-25.82l-.073-1.73L15.26 71.312l-1.335.635C5.077 89.644 0 109.517 0 130.55s5.077 40.905 13.925 58.602z"
-                      ></path>
-                      <path
-                        fill="#EB4335"
-                        d="M130.55 50.479c24.514 0 41.05 10.589 50.479 19.438l36.844-35.974C195.245 12.91 165.798 0 130.55 0C79.49 0 35.393 29.301 13.925 71.947l42.211 32.783c10.59-31.477 39.891-54.251 74.414-54.251"
-                      ></path>
-                    </svg>
-                    Sign in with Google
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className={cn("w-full gap-2")}
-                    disabled={loading}
-                    onClick={async () => {
-                      setLoading(true);
-                      try {
-                        await signInWithSocial("github");
-                      } catch (error: any) {
-                        toast.error(
-                          error?.message || "Failed to sign in with GitHub"
-                        );
-                        setLoading(false);
-                      }
-                    }}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="1em"
-                      height="1em"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        fill="currentColor"
-                        d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5c.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34c-.46-1.16-1.11-1.47-1.11-1.47c-.91-.62.07-.6.07-.6c1 .07 1.53 1.03 1.53 1.03c.87 1.52 2.34 1.07 2.91.83c.09-.65.35-1.09.63-1.34c-2.22-.25-4.55-1.11-4.55-4.92c0-1.11.38-2 1.03-2.71c-.1-.25-.45-1.29.1-2.64c0 0 .84-.27 2.75 1.02c.79-.22 1.65-.33 2.5-.33s1.71.11 2.5.33c1.91-1.29 2.75-1.02 2.75-1.02c.55 1.35.2 2.39.1 2.64c.65.71 1.03 1.6 1.03 2.71c0 3.82-2.34 4.66-4.57 4.91c.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2"
-                      ></path>
-                    </svg>
-                    Sign in with Github
-                  </Button>
-                </div>
-
-                <div className="text-center text-sm text-muted-foreground mt-4">
-                  Don't have an account?{" "}
-                  <button
-                    onClick={() => setSelectedTab("signUp")}
-                    className="text-primary hover:underline font-medium"
-                  >
-                    Sign up
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // Sign Up Form
-              <div className="grid gap-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="first-name">First name</Label>
-                    <Input
-                      id="first-name"
-                      placeholder="Max"
-                      required
-                      onChange={(e) => {
-                        setFirstName(e.target.value);
-                        validateField("firstName", e.target.value);
-                      }}
-                      onBlur={() => validateField("firstName", firstName)}
-                      value={firstName}
-                      className={errors.firstName ? "border-destructive" : ""}
-                    />
-                    {errors.firstName && (
-                      <p className="text-sm text-destructive">{errors.firstName}</p>
-                    )}
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="last-name">Last name</Label>
-                    <Input
-                      id="last-name"
-                      placeholder="Robinson"
-                      required
-                      onChange={(e) => {
-                        setLastName(e.target.value);
-                        validateField("lastName", e.target.value);
-                      }}
-                      onBlur={() => validateField("lastName", lastName)}
-                      value={lastName}
-                      className={errors.lastName ? "border-destructive" : ""}
-                    />
-                    {errors.lastName && (
-                      <p className="text-sm text-destructive">{errors.lastName}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      validateField("email", e.target.value);
-                    }}
-                    onBlur={() => validateField("email", email)}
-                    value={email}
-                    className={errors.email ? "border-destructive" : ""}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email}</p>
-                  )}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      validateField("password", e.target.value);
-                      // Re-validate password confirmation if it has a value
-                      if (passwordConfirmation) {
-                        validateField("passwordConfirmation", passwordConfirmation);
-                      }
-                    }}
-                    onBlur={() => validateField("password", password)}
-                    autoComplete="new-password"
-                    placeholder="Password"
-                    className={errors.password ? "border-destructive" : ""}
-                  />
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password}</p>
-                  )}
-                  {!errors.password && password && (
-                    <p className="text-xs text-muted-foreground">
-                      Min 8 chars: uppercase, lowercase, number, special char
-                    </p>
-                  )}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password_confirmation">
-                    Confirm Password
-                  </Label>
-                  <Input
-                    id="password_confirmation"
-                    type="password"
-                    value={passwordConfirmation}
-                    onChange={(e) => {
-                      setPasswordConfirmation(e.target.value);
-                      // Re-validate password match when confirmation changes
-                      if (password) {
-                        validateField("passwordConfirmation", e.target.value);
-                      }
-                    }}
-                    onBlur={() => {
-                      validateField("passwordConfirmation", passwordConfirmation);
-                      // Also re-validate password to check match
-                      if (password) {
-                        validateField("password", password);
-                      }
-                    }}
-                    autoComplete="new-password"
-                    placeholder="Confirm Password"
-                    className={errors.passwordConfirmation ? "border-destructive" : ""}
-                  />
-                  {errors.passwordConfirmation && (
-                    <p className="text-sm text-destructive">{errors.passwordConfirmation}</p>
-                  )}
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="image">Profile Image (optional)</Label>
-                  <div className="flex items-end gap-4">
-                    {imagePreview && (
-                      <div className="relative w-16 h-16 rounded-sm overflow-hidden">
-                        <Image
-                          src={imagePreview}
-                          alt="Profile preview"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 w-full">
-                      <Input
-                        id="image"
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                        onChange={handleImageChange}
-                        className={cn("w-full", errors.image && "border-destructive")}
-                      />
-                      {imagePreview && (
-                        <X
-                          className="cursor-pointer"
-                          onClick={() => {
-                            setImage(null);
-                            setImagePreview(null);
-                            setErrors((prev) => ({ ...prev, image: undefined }));
-                          }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  {errors.image && (
-                    <p className="text-sm text-destructive">{errors.image}</p>
-                  )}
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
-                  onClick={async () => {
-                    // Validate form before submission
-                    if (!validateForm()) {
-                      return;
-                    }
-
-                    setLoading(true);
-                    try {
-                      // Convert image to base64 if provided
-                      const imageBase64 = image
-                        ? await convertImageToBase64(image)
-                        : undefined;
-
-                      const result = await signUp(
-                        email,
-                        password,
-                        `${firstName} ${lastName}`,
-                        imageBase64
+                      toast.error(
+                        error?.message || "Failed to sign in with Google"
                       );
-                      if (result && result.user) {
-                        toast.success("Account created successfully! Please check your email to verify your account.");
-                        // Store email and show verification screen
-                        setVerificationEmail(email);
-                        setSelectedTab("email-verification");
-                        // Clear form
-                        setFirstName("");
-                        setLastName("");
-                        setEmail("");
-                        setPassword("");
-                        setPasswordConfirmation("");
-                        setImage(null);
-                        setImagePreview(null);
-                        setErrors({});
-                      }
-                    } catch (error: any) {
-                      toast.error(error?.message || "Failed to sign up");
-                    } finally {
-                      setLoading(false);
+                      setLoadingProvider(null);
                     }
                   }}
                 >
-                  {loading ? (
+                  {loadingProvider === "google" ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    "Create an account"
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="1em"
+                        height="1em"
+                        viewBox="0 0 256 262"
+                      >
+                        <path
+                          fill="#4285F4"
+                          d="M255.878 133.451c0-10.734-.871-18.567-2.756-26.69H130.55v48.448h71.947c-1.45 12.04-9.283 30.172-26.69 42.356l-.244 1.622l38.755 30.023l2.685.268c24.659-22.774 38.875-56.282 38.875-96.027"
+                        ></path>
+                        <path
+                          fill="#34A853"
+                          d="M130.55 261.1c35.248 0 64.839-11.605 86.453-31.622l-41.196-31.913c-11.024 7.688-25.82 13.055-45.257 13.055c-34.523 0-63.824-22.773-74.269-54.25l-1.531.13l-40.298 31.187l-.527 1.465C35.393 231.798 79.49 261.1 130.55 261.1"
+                        ></path>
+                        <path
+                          fill="#FBBC05"
+                          d="M56.281 156.37c-2.756-8.123-4.351-16.827-4.351-25.82c0-8.994 1.595-17.697 4.206-25.82l-.073-1.73L15.26 71.312l-1.335.635C5.077 89.644 0 109.517 0 130.55s5.077 40.905 13.925 58.602z"
+                        ></path>
+                        <path
+                          fill="#EB4335"
+                          d="M130.55 50.479c24.514 0 41.05 10.589 50.479 19.438l36.844-35.974C195.245 12.91 165.798 0 130.55 0C79.49 0 35.393 29.301 13.925 71.947l42.211 32.783c10.59-31.477 39.891-54.251 74.414-54.251"
+                        ></path>
+                      </svg>
+                      Sign in with Google
+                    </>
                   )}
                 </Button>
-
-                <div className="text-center text-sm text-muted-foreground mt-4">
-                  Already have an account?{" "}
-                  <button
-                    onClick={() => setSelectedTab("signIn")}
-                    className="text-primary hover:underline font-medium"
-                  >
-                    Sign in
-                  </button>
-                </div>
+                <Button
+                  variant="outline"
+                  className={cn("w-full gap-2")}
+                  disabled={loadingProvider !== null}
+                  onClick={async () => {
+                    setLoadingProvider("github");
+                    try {
+                      await signInWithSocial("github");
+                    } catch (error: any) {
+                      toast.error(
+                        error?.message || "Failed to sign in with GitHub"
+                      );
+                      setLoadingProvider(null);
+                    }
+                  }}
+                >
+                  {loadingProvider === "github" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="1em"
+                        height="1em"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5c.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34c-.46-1.16-1.11-1.47-1.11-1.47c-.91-.62.07-.6.07-.6c1 .07 1.53 1.03 1.53 1.03c.87 1.52 2.34 1.07 2.91.83c.09-.65.35-1.09.63-1.34c-2.22-.25-4.55-1.11-4.55-4.92c0-1.11.38-2 1.03-2.71c-.1-.25-.45-1.29.1-2.64c0 0 .84-.27 2.75 1.02c.79-.22 1.65-.33 2.5-.33s1.71.11 2.5.33c1.91-1.29 2.75-1.02 2.75-1.02c.55 1.35.2 2.39.1 2.64c.65.71 1.03 1.6 1.03 2.71c0 3.82-2.34 4.66-4.57 4.91c.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2"
+                        ></path>
+                      </svg>
+                      Sign in with Github
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </div>

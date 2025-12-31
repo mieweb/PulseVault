@@ -3,8 +3,6 @@ import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
-import { sendPasswordResetEmail } from "./emails/sendPasswordResetEmail";
-import { sendVerificationEmail } from "./emails/sendVerificationEmail";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -16,21 +14,6 @@ export const auth = betterAuth({
       maxAge: 60 * 5, // 5 minutes
     }
   },
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: true,
-    sendResetPassword: async ({ user, url }) => {
-      await sendPasswordResetEmail({ user, url });
-    },
-  },
-  emailVerification: {
-    autoSignInAfterVerification: true,
-    sendOnSignUp: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      await sendVerificationEmail({ user, url });
-    },
-  },
-
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,

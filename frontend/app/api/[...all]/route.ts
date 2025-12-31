@@ -4,8 +4,6 @@ import arcjet, {
   ArcjetDecision,
   BotOptions,
   detectBot,
-  EmailOptions,
-  protectSignup,
   shield,
   slidingWindow,
   SlidingWindowRateLimitOptions,
@@ -20,20 +18,18 @@ const aj = arcjet({
 });
 
 const botSettings = { mode: "LIVE", allow: [] } satisfies BotOptions;
-const restrictiveRateLimitSettings = {
+// Restrictive rate limit for auth endpoints (SSO redirects, callbacks)
+const authRateLimitSettings = {
   mode: "LIVE",
   max: 10,
   interval: "10m",
 } satisfies SlidingWindowRateLimitOptions<[]>;
-const laxRateLimitSettings = {
+// More lenient rate limit for other auth API calls
+const generalRateLimitSettings = {
   mode: "LIVE",
   max: 60,
   interval: "1m",
 } satisfies SlidingWindowRateLimitOptions<[]>;
-const emailSettings = {
-  mode: "LIVE",
-  block: ["DISPOSABLE", "INVALID", "NO_MX_RECORDS"],
-} satisfies EmailOptions;
 
 const authHandlers = toNextJsHandler(auth);
 export const { GET } = authHandlers;
@@ -44,23 +40,9 @@ export async function POST(request: Request) {
 
   if (decision instanceof ArcjetDecision && decision.isDenied()) {
     if (decision.reason.isRateLimit()) {
-      return new Response(null, { status: 429 });
-    } else if (decision.reason.isEmail()) {
-      let message: string;
-
-      if (decision.reason.emailTypes.includes("INVALID")) {
-        message = "Invalid email address is not allowed";
-      } else if (decision.reason.emailTypes.includes("DISPOSABLE")) {
-        message = "Disposable email address is not allowed";
-      } else if (decision.reason.emailTypes.includes("NO_MX_RECORDS")) {
-        message = "No MX records found for email address";
-      } else {
-        message = "Invalid email address";
-      }
-
-      return new Response(message, { status: 400 });
+      return new Response("Too many requests", { status: 429 });
     } else {
-      return new Response(null, { status: 403 });
+      return new Response("Forbidden", { status: 403 });
     }
   }
 
@@ -68,34 +50,21 @@ export async function POST(request: Request) {
 }
 
 async function checkArcjet(request: Request) {
-  const body = (await request.json()) as unknown;
   const session = await getSession();
   const userIdOrIp = session?.user?.id ?? (findIp(request) || "127.0.0.1");
 
+  // Apply stricter rate limiting and bot protection to auth endpoints
+  // This protects SSO redirects and OAuth callbacks from abuse
   if (request.url.endsWith("/auth")) {
-    if (
-      body &&
-      typeof body === "object" &&
-      "email" in body &&
-      typeof body.email === "string"
-    ) {
-      return aj.withRule(
-        protectSignup({
-          email: emailSettings,
-          bots: botSettings,
-          rateLimit: restrictiveRateLimitSettings,
-        })
-      );
-    } else {
-      return aj
-        .withRule(detectBot(botSettings))
-        .withRule(slidingWindow(restrictiveRateLimitSettings))
-        .protect(request, { userIdOrIp });
-    }
+    return aj
+      .withRule(detectBot(botSettings))
+      .withRule(slidingWindow(authRateLimitSettings))
+      .protect(request, { userIdOrIp });
   }
 
+  // More lenient rate limiting for other auth API calls
   return aj
     .withRule(detectBot(botSettings))
-    .withRule(slidingWindow(laxRateLimitSettings))
+    .withRule(slidingWindow(generalRateLimitSettings))
     .protect(request, { userIdOrIp });
 }
