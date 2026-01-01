@@ -30,7 +30,7 @@ export default function AuthClient() {
         <div className="max-w-lg relative z-10">
           <div className="mb-8">
             <h1 className="text-5xl font-bold mb-4 text-foreground">
-              <span className="text-destructive">Pulse</span><span className="text-white">Vault</span>
+              <span className="text-destructive">Pulse</span><span className="text-foreground dark:text-white">Vault</span>
             </h1>
             <p className="text-xl text-muted-foreground">
               Upload, view, and manage short-form videos for healthcare and research
@@ -98,8 +98,7 @@ export default function AuthClient() {
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Heart className="w-4 h-4 fill-destructive text-destructive" />
             <span>
-              Your data has a heartbeat.{" "}
-              <span className="text-white">Vi</span><span className="text-destructive">tals</span> makes it visible.
+              <span className="text-destructive">Pulse</span><span className="text-foreground dark:text-white">Vault</span>
             </span>
           </div>
         </div>
