@@ -140,7 +140,7 @@ export default function Home() {
                   </h2>
                 </div>
                 <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Join healthcare and research teams using <span className="text-white">Vi</span><span className="text-destructive">tals</span> to securely
+                  Join healthcare and research teams using <span className="text-destructive">Pulse</span><span className="text-white">Vault</span> to securely
                   manage their video data
                 </p>
                 <Button

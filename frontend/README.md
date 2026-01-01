@@ -1,10 +1,10 @@
-# Vitals
+# PulseVault Frontend
 
-**Vitals** is a Next.js web application for uploading, viewing, and managing short-form videos in healthcare and research environments. It provides a secure, HIPAA-compliant interface for video content management with SSO authentication.
+**PulseVault Frontend** is a Next.js web application for uploading, viewing, and managing short-form videos in healthcare and research environments. It provides a secure, HIPAA-compliant interface for video content management with SSO authentication.
 
 ## Overview
 
-Vitals is the frontend component of the PulseVault platform, designed to provide users with an intuitive interface for:
+PulseVault Frontend is the frontend component of the PulseVault platform, designed to provide users with an intuitive interface for:
 - **Uploading videos** directly from the browser
 - **Viewing short-form videos** in an infinite scrolling feed
 - **Managing user profiles** and account settings
@@ -109,7 +109,7 @@ frontend/
 │   └── layout.tsx         # Root layout with navbar
 ├── components/
 │   ├── ui/                # shadcn/ui components
-│   ├── animated-title.tsx # Animated landing page title
+│   ├── animated-title.tsx # Animated landing page title (cycles PulseVault ↔ PulseVideo)
 │   ├── navbar.tsx         # Navigation with user menu
 │   └── theme-provider.tsx # Dark/light mode
 ├── lib/
@@ -160,7 +160,8 @@ frontend/
 ## Key Pages
 
 ### Landing Page (`/`)
-- Animated title transition (Video → Vitals)
+- Animated title that cycles between "PulseVault" and "PulseVideo" with backspace/typing animation
+- "Pulse" stays static (red), while "Vault"/"Video" cycles (white)
 - Feature highlights
 - Call-to-action to sign in
 
@@ -251,4 +252,4 @@ This project is part of the PulseVault platform and is released under a source-a
 
 ---
 
-**Vitals** - Making your video data visible. 🫀
+**PulseVault** - Secure video storage and delivery. 🫀

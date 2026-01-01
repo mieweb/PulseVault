@@ -9,13 +9,13 @@ This repository defines the **Pulse Platform** architecture and coordination bet
 |------------|--------------|-------|
 | **Pulse** | Capture app for recording and uploading encrypted video/data | Native / Mobile |
 | **PulseVault Backend** | Storage and processing system (Fastify + FFmpeg + Redis + Nginx) | Node.js |
-| **Vitals** | Frontend application for uploading, viewing, and managing short-form videos | Next.js + React + TypeScript |
+| **PulseVault Frontend** | Frontend application for uploading, viewing, and managing short-form videos | Next.js + React + TypeScript |
 
 ---
 
 ## Overview
 
-**PulseVault** is a HIPAA-compliant video storage and delivery platform. The **Backend** receives encrypted uploads from the **Pulse** camera app, transcodes them to adaptive HLS/DASH video, and serves them securely. **Vitals** provides a web interface for users to upload short-form videos, view them in an infinite feed, manage their profiles, and access administrative features.
+**PulseVault** is a HIPAA-compliant video storage and delivery platform. The **Backend** receives encrypted uploads from the **Pulse** camera app, transcodes them to adaptive HLS/DASH video, and serves them securely. **PulseVault Frontend** provides a web interface for users to upload short-form videos, view them in an infinite feed, manage their profiles, and access administrative features.
 
 The entire system is designed for **HIPAA compliance**, **self-hosted deployment**, and **high performance** across web and mobile.
 
@@ -40,7 +40,7 @@ The entire system is designed for **HIPAA compliance**, **self-hosted deployment
                │ HLS/DASH streams via Nginx
                ▼
 ┌─────────────────────────────┐
-│        Vitals (Frontend)     │
+│   PulseVault Frontend        │
 │  Next.js App                 │
 │  - Video upload              │
 │  - Short-form video feed     │
@@ -66,7 +66,7 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
        │ 1. Click "Sign in with Google/GitHub"
        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Vitals (Next.js Frontend)                           │
+│         PulseVault Frontend (Next.js)                       │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │  Auth Page (/auth)                                    │  │
 │  │  - SSO-only authentication                            │  │
@@ -111,7 +111,7 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
        │ 4. Session cookie set, redirect to dashboard
        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Vitals                                               │
+│         PulseVault Frontend                                  │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │  Dashboard (/dashboard)                              │  │
 │  │  - Authenticated user session                         │  │
@@ -166,7 +166,7 @@ For detailed architecture documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARC
 
 - **[`pulsevault`](https://github.com/mieweb/pulsevault)** (This repository)
   * `pulsevault/` - Secure backend for ingest, transcoding, and serving HLS/DASH media.
-  * `frontend/` - Next.js application (Vitals) for uploading, viewing, and managing short-form videos.
+  * `frontend/` - Next.js application (PulseVault Frontend) for uploading, viewing, and managing short-form videos.
 
 - **[`pulse`](https://github.com/mieweb/pulse)** - Mobile camera and sensor capture app
   * React Native/Expo cross-platform mobile application
@@ -184,7 +184,7 @@ sequenceDiagram
     autonumber
 
     participant User as 👤 **User (Browser)**
-    participant Vitals as 💻 **Vitals (Next.js Frontend)**
+    participant Frontend as 💻 **PulseVault Frontend (Next.js)**
     participant OAuth as 🔐 **OAuth Provider (Google/GitHub)**
     participant AuthAPI as 🔒 **Better Auth API**
     participant Arcjet as 🛡️ **Arcjet Security**
@@ -197,8 +197,8 @@ sequenceDiagram
     participant Storage as 💾 **Encrypted Storage**
 
     %% --- Authentication Phase ---
-    User->>+Vitals: Visit /auth
-    Vitals->>User: Display SSO sign-in buttons
+    User->>+Frontend: Visit /auth
+    Frontend->>User: Display SSO sign-in buttons
     User->>+OAuth: Click "Sign in with Google/GitHub"
     OAuth->>User: Authenticate and grant permissions
     OAuth->>+AuthAPI: OAuth callback with code
@@ -206,7 +206,7 @@ sequenceDiagram
     Arcjet-->>AuthAPI: Allow request
     AuthAPI->>+Database: Create/update user session
     Database-->>AuthAPI: Session created
-    AuthAPI-->>Vitals: Session cookie set, redirect to /dashboard
+    AuthAPI-->>Frontend: Session cookie set, redirect to /dashboard
     deactivate AuthAPI
     deactivate OAuth
 
@@ -229,20 +229,20 @@ sequenceDiagram
     deactivate Transcoder
 
     %% --- Video Viewing Phase ---
-    User->>+Vitals: Request video feed
-    Vitals->>+Nginx: Request /media/videos/<uuid>/hls/playlist.m3u8
+    User->>+Frontend: Request video feed
+    Frontend->>+Nginx: Request /media/videos/<uuid>/hls/playlist.m3u8
     Nginx->>+PulseVault: Validate signed HMAC token (≤300s expiry)
     PulseVault->>Storage: Stream byte ranges (206 Partial Content)
-    PulseVault-->>Vitals: HLS playlist + segments
-    Vitals-->>User: Display video in feed
+    PulseVault-->>Frontend: HLS playlist + segments
+    Frontend-->>User: Display video in feed
 
-    %% --- Video Upload Phase (from Vitals) ---
-    User->>+Vitals: Upload video from browser
-    Vitals->>+Nginx: Initiate resumable upload (tus protocol)
+    %% --- Video Upload Phase (from Frontend) ---
+    User->>+Frontend: Upload video from browser
+    Frontend->>+Nginx: Initiate resumable upload (tus protocol)
     Nginx->>+PulseVault: Proxy POST /uploads
     PulseVault->>Storage: Write upload chunk
-    PulseVault-->>Vitals: Upload progress
-    Vitals->>+PulseVault: POST /uploads/finalize
+    PulseVault-->>Frontend: Upload progress
+    Frontend->>+PulseVault: POST /uploads/finalize
     PulseVault->>Storage: Move file → /videos/<uuid>/original.mp4
     PulseVault->>Redis: Enqueue "transcode" job
     deactivate PulseVault
@@ -259,10 +259,10 @@ sequenceDiagram
 - **Reverse Proxy:** Nginx (TLS, rate-limit, caching)
 - **Immutable Logs:** optional MinIO Object Lock bucket
 
-### Vitals (Frontend)
+### PulseVault Frontend
 - **Framework:** Next.js 16 (App Router) + React 19 + TypeScript
 - **Styling:** TailwindCSS + shadcn/ui components
-- **Authentication:** Better Auth (OAuth: Google, GitHub)
+- **Authentication:** Better Auth (OAuth: Google, GitHub) - SSO-only
 - **Database:** PostgreSQL with Prisma ORM
 - **Security:** Arcjet (bot detection, rate limiting)
 - **Upload:** Video upload interface (integrates with backend tus)
@@ -270,6 +270,7 @@ sequenceDiagram
 - **State Management:** React Server Components + Server Actions
 - **UI Components:** Radix UI + shadcn/ui
 - **Features:** Short-form video feed, profile management, admin dashboard
+- **Branding:** Animated title cycles between "PulseVault" and "PulseVideo" (Pulse in red, Vault/Video in white)
 
 ---
 
@@ -391,5 +392,5 @@ Usage for HIPAA-covered or regulated workloads requires a signed BAA and on-prem
 ### 🫀 "Your data has a heartbeat."
 
 **PulseVault** protects it.
-**Vitals** makes it visible.
+**PulseVault Frontend** makes it visible.
 **Pulse** brings it to life.

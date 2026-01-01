@@ -44,7 +44,7 @@ const profileUpdateSchema = z.object({
     .regex(/^[a-zA-Z\s'-]+$/, "Letters only")
     .optional()
     .or(z.literal("")),
-});
+  });
 
 type ProfileUpdateFormData = z.infer<typeof profileUpdateSchema>;
 

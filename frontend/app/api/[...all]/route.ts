@@ -56,10 +56,10 @@ async function checkArcjet(request: Request) {
   // Apply stricter rate limiting and bot protection to auth endpoints
   // This protects SSO redirects and OAuth callbacks from abuse
   if (request.url.endsWith("/auth")) {
-    return aj
-      .withRule(detectBot(botSettings))
+      return aj
+        .withRule(detectBot(botSettings))
       .withRule(slidingWindow(authRateLimitSettings))
-      .protect(request, { userIdOrIp });
+        .protect(request, { userIdOrIp });
   }
 
   // More lenient rate limiting for other auth API calls
