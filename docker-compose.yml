@@ -89,6 +89,8 @@ services:
     environment:
       - NODE_ENV=production
       - BETTER_AUTH_URL=https://pulse-vault.opensource.mieweb.org
+    ports:
+      - "3002:3000"
     depends_on:
       - pulsevault
     healthcheck:
