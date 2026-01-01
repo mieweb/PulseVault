@@ -79,6 +79,25 @@ services:
     # To scale workers, use: docker-compose up -d --scale transcode-worker=2
     # Note: container_name removed to allow scaling
 
+  # PulseVault frontend
+  pulsevault-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pulsevault-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BETTER_AUTH_URL=https://pulse-vault.opensource.mieweb.org
+    depends_on:
+      - pulsevault
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # Nginx reverse proxy
   # Note: Uses port 8080 for unprivileged LXC containers (Proxmox handles SSL termination)
   nginx:
@@ -94,6 +113,7 @@ services:
       - nginx-cache:/var/cache/nginx # Persist cache across restarts
     depends_on:
       - pulsevault
+      - pulsevault-frontend
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/health"]
       interval: 30s
