@@ -75,7 +75,7 @@ export default function Navbar({ session }: { session?: Session | null }) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-bold text-foreground">
-              <span className="text-destructive">Pulse</span><span className="text-white">Vault</span>
+              <span className="text-destructive">Pulse</span><span className="text-foreground dark:text-white">Vault</span>
             </span>
           </Link>
 

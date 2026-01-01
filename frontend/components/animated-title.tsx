@@ -149,12 +149,12 @@ export default function AnimatedTitle({ onFadeProgress }: AnimatedTitleProps) {
   }, [onFadeProgress]);
 
   return (
-    <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold mb-6 sm:mb-8 text-foreground leading-tight">
+    <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-5 sm:mb-7 text-foreground leading-tight">
       <span className="text-destructive">Pulse</span>
-      <span className="text-white">
+      <span className="text-foreground dark:text-white">
         {suffixText}
         {isAnimating && (
-          <span className="inline-block w-0.5 h-[0.9em] bg-white ml-1 animate-pulse" />
+          <span className="inline-block w-0.5 h-[0.9em] bg-foreground dark:bg-white ml-1 animate-pulse" />
         )}
       </span>
     </h1>

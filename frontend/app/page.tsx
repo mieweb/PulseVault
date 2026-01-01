@@ -65,35 +65,35 @@ export default function Home() {
       {/* Content */}
       <div className="relative z-10">
         {/* Hero Section - Full Screen */}
-        <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto text-center w-full">
-            <div className="inline-block mb-6 sm:mb-8">
-              <span className="text-sm sm:text-base md:text-lg font-bold text-muted-foreground px-5 py-2.5 sm:px-6 sm:py-3 rounded-full border border-border bg-card/50 backdrop-blur-sm">
+        <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 md:pt-14">
+          <div className="max-w-7xl mx-auto text-center w-full -mt-20 sm:-mt-24 md:-mt-28 lg:-mt-32 xl:-mt-36">
+            <div className="inline-block mb-2 sm:mb-3">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-muted-foreground px-4 py-2 sm:px-5 sm:py-2.5 rounded-full border border-border bg-card/50 backdrop-blur-sm">
                 HIPAA-Compliant • Self-Hosted • Secure
               </span>
             </div>
 
             <AnimatedTitle />
 
-            <p className="text-2xl sm:text-3xl md:text-4xl text-muted-foreground mb-6 sm:mb-8 max-w-3xl mx-auto font-semibold leading-tight">
+            <p className="text-xl sm:text-2xl md:text-3xl text-muted-foreground mb-3 sm:mb-4 max-w-3xl mx-auto font-semibold leading-tight">
               Upload, view, and manage short-form videos for
               <span className="text-destructive"> healthcare</span> and
               <span className="text-destructive"> research</span>
             </p>
 
-            <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-10 sm:mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-5 sm:mb-6 max-w-2xl mx-auto font-medium leading-relaxed">
               HIPAA-compliant platform for uploading short-form videos, viewing them in an infinite feed, and securely sharing encrypted content
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-4 sm:mt-6">
               <Button
                 asChild
                 size="lg"
-                className="text-lg sm:text-xl md:text-2xl px-8 sm:px-10 md:px-12 py-5 sm:py-6 md:py-7 bg-destructive hover:bg-destructive/90 text-white border-0 rounded-full shadow-lg shadow-destructive/50 hover:shadow-destructive/70 transition-all duration-300 group font-bold"
+                className="text-sm sm:text-base md:text-lg px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 bg-destructive hover:bg-destructive/90 text-white border-0 rounded-full shadow-lg shadow-destructive/50 hover:shadow-destructive/70 transition-all duration-300 group font-bold"
               >
-                <Link href="/auth" className="flex items-center gap-2 sm:gap-3">
+                <Link href="/auth" className="flex items-center gap-1.5 sm:gap-2">
                   Get Started
-                  <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
             </div>
@@ -134,23 +134,23 @@ export default function Home() {
             <div className="relative p-12 rounded-3xl border border-border bg-card/30 backdrop-blur-sm">
               <div className="relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-4">
-                  <Heart className="w-6 h-6 text-destructive fill-destructive" />
-                  <h2 className="text-3xl font-bold text-foreground">
+                  <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-destructive fill-destructive" />
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
                     Ready to get started?
                   </h2>
                 </div>
-                <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Join healthcare and research teams using <span className="text-destructive">Pulse</span><span className="text-white">Vault</span> to securely
+                <p className="text-sm sm:text-base md:text-lg text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto">
+                  Join healthcare and research teams using <span className="text-destructive">Pulse</span><span className="text-foreground dark:text-white">Vault</span> to securely
                   manage their video data
                 </p>
                 <Button
                   asChild
                   size="lg"
-                  className="text-lg px-8 bg-red-600 hover:bg-red-700 text-white border-0 rounded-full shadow-lg shadow-red-500/50 hover:shadow-red-500/70 transition-all duration-300 group"
+                  className="text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-4 bg-red-600 hover:bg-red-700 text-white border-0 rounded-full shadow-lg shadow-red-500/50 hover:shadow-red-500/70 transition-all duration-300 group"
                 >
                   <Link href="/auth" className="flex items-center gap-2">
                     Create Account
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </Button>
               </div>
