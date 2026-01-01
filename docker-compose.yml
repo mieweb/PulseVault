@@ -4,8 +4,7 @@ services:
     image: redis:7-alpine
     container_name: pulsevault-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Ports not exposed - internal communication only via Docker network
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
@@ -22,8 +21,7 @@ services:
       dockerfile: Dockerfile
     container_name: pulsevault-backend
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    # Ports not exposed - accessed via nginx only (internal Docker network)
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -88,11 +86,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - BETTER_AUTH_URL=https://pulse-vault.opensource.mieweb.org
-    ports:
-      - "3002:3000"
-    depends_on:
-      - pulsevault
+    # Ports not exposed - accessed via nginx only (internal Docker network)
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
       interval: 30s
@@ -128,8 +122,8 @@ services:
     image: prom/prometheus:latest
     container_name: pulsevault-prometheus
     restart: unless-stopped
-    ports:
-      - "9090:9090"
+    # Ports not exposed - access via SSH tunnel or nginx proxy with auth
+    # To access: ssh -L 9090:localhost:9090 user@host
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -143,8 +137,8 @@ services:
     image: grafana/grafana:latest
     container_name: pulsevault-grafana
     restart: unless-stopped
-    ports:
-      - "3001:3000"
+    # Ports not exposed - access via SSH tunnel or nginx proxy with auth
+    # To access: ssh -L 3001:localhost:3000 user@host
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
@@ -160,8 +154,8 @@ services:
     image: grafana/loki:latest
     container_name: pulsevault-loki
     restart: unless-stopped
-    ports:
-      - "3100:3100"
+    # Ports not exposed - access via SSH tunnel or nginx proxy with auth
+    # To access: ssh -L 3100:localhost:3100 user@host
     volumes:
       - loki-data:/loki
       - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
