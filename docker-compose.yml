@@ -22,20 +22,7 @@ services:
     container_name: pulsevault-backend
     restart: unless-stopped
     # Ports not exposed - accessed via nginx only (internal Docker network)
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - HOST=0.0.0.0
-      - MEDIA_ROOT=/media
-      - UPLOAD_DIR=/media/uploads
-      - VIDEO_DIR=/media/videos
-      - AUDIT_DIR=/media/audit
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - HMAC_SECRET=${HMAC_SECRET:-change-me-in-production}
-      - TRANSCODE_ENABLED=true
-      - METRICS_ENABLED=true
-      - LOG_LEVEL=info
+    # Environment variables loaded from .env file in pulsevault directory
     volumes:
       - media-storage:/media
     depends_on:
@@ -61,14 +48,7 @@ services:
       dockerfile: Dockerfile.worker
     # Note: container_name removed to allow scaling with replicas
     restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - MEDIA_ROOT=/media
-      - VIDEO_DIR=/media/videos
-      - AUDIT_DIR=/media/audit
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - RENDITIONS=720p,1080p,1440p
+    # Environment variables loaded from .env file in pulsevault directory
     volumes:
       - media-storage:/media
     depends_on:

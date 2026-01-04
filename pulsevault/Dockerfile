@@ -14,6 +14,9 @@ RUN npm ci --only=production
 # Copy application code
 COPY . .
 
+# Copy .env file if it exists (for environment variables)
+COPY .env* ./
+
 # Create media directories
 RUN mkdir -p /media/uploads /media/videos /media/audit
 
