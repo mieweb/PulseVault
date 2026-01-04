@@ -10,12 +10,10 @@ const os = require('node:os')
  * Loads and validates environment variables
  */
 module.exports = fp(async function (fastify, opts) {
-  // Load .env file if it exists (for development)
-  if (process.env.NODE_ENV !== 'production') {
-    const envPath = path.join(__dirname, '..', '.env')
-    if (fs.existsSync(envPath)) {
-      require('dotenv').config({ path: envPath })
-    }
+  // Load .env file if it exists (works in both development and production)
+  const envPath = path.join(__dirname, '..', '.env')
+  if (fs.existsSync(envPath)) {
+    require('dotenv').config({ path: envPath })
   }
 
   const config = {
@@ -36,8 +34,10 @@ module.exports = fp(async function (fastify, opts) {
     requireUploadToken: process.env.REQUIRE_UPLOAD_TOKEN !== 'false', // Default: true (require token)
 
     // Redis
+    // Default to Docker container name 'pulsevault-redis' (works in Docker network)
+    // Override with REDIS_HOST env var for local development (use 'localhost')
     redis: {
-      host: process.env.REDIS_HOST || 'localhost',
+      host: process.env.REDIS_HOST || 'pulsevault-redis',
       port: parseInt(process.env.REDIS_PORT || '6379', 10),
       password: process.env.REDIS_PASSWORD || undefined,
       db: parseInt(process.env.REDIS_DB || '0', 10)
