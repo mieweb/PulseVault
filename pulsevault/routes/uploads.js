@@ -127,9 +127,15 @@ module.exports = async function (fastify, opts) {
     // Use userId from token if available, otherwise use provided userId or default
     const finalUserId = tokenPayload?.userId || userId || 'anonymous'
     const organizationId = tokenPayload?.organizationId || null
-
-    // Generate UUID for video
-    const videoId = uuidv4()
+    
+    // Use draftId from token as videoId if provided, otherwise generate new UUID
+    const draftId = tokenPayload?.draftId || null
+    const videoId = draftId || uuidv4()
+    
+    if (draftId) {
+      fastify.log.info({ draftId, videoId }, 'Using draftId as videoId')
+    }
+    
     const videoDir = path.join(fastify.config.videoDir, videoId)
     const uploadPath = path.join(fastify.config.uploadDir, uploadId)
 

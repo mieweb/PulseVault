@@ -24,6 +24,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  videos        Video[]
   role          String?
   banned        Boolean?  @default(false)
   banReason     String?
@@ -81,4 +82,43 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model Video {
+  id      String @id @default(uuid())
+  videoId String @unique // UUID used in filesystem/backend
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Video metadata
+  filename    String?
+  title       String?
+  description String?
+
+  // Status tracking
+  status String @default("draft") // draft, uploaded, transcoding, transcoded, failed
+
+  // File info (from backend)
+  originalSize     Int?
+  originalChecksum String?
+
+  // Video properties (after transcoding)
+  duration   Float?
+  width      Int?
+  height     Int?
+  renditions String[] // Array of available qualities: ["240p", "360p", ...]
+
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  uploadedAt   DateTime?
+  transcodedAt DateTime?
+
+  // Organization (optional)
+  organizationId String?
+
+  @@index([userId])
+  @@index([status])
+  @@index([videoId])
+  @@map("video")
 }
