@@ -2,8 +2,33 @@
 
 import { Session } from "@/lib/auth";
 import { UploadQRCard } from "@/components/upload-qr-card";
+import { VideoFeed } from "@/components/video-feed";
 
-export default function DashboardClient({ session }: { session: Session }) {
+type Video = {
+  videoId: string;
+  title?: string | null;
+  filename?: string | null;
+  duration?: number | null;
+  status: string;
+  user?: {
+    id: string;
+    name: string;
+    image?: string | null;
+  } | null;
+};
+
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+};
+
+export default function DashboardClient({ session, initialVideos, initialPagination }: { 
+  session: Session;
+  initialVideos: Video[];
+  initialPagination: Pagination;
+}) {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -13,22 +38,16 @@ export default function DashboardClient({ session }: { session: Session }) {
             <UploadQRCard />
           </div>
           
-          {/* Right side - Main content */}
-          <div className="flex-1">
-            <div className="bg-card rounded-lg shadow-sm border border-border p-8">
-              <div className="flex items-center justify-center">
-                {session.user.role && (
-                  <span
-                    className={`px-4 py-2 rounded-md text-base font-semibold ${
-                      session.user.role.toLowerCase() === "admin"
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                    }`}
-                  >
-                    {session.user.role}
-                  </span>
-                )}
-              </div>
+          {/* Right side - Scrollable Feed */}
+          <div className="flex-1 min-w-0">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-card-foreground">Video Feed</h1>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Browse all transcoded videos
+              </p>
+            </div>
+            <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+              <VideoFeed initialVideos={initialVideos} initialPagination={initialPagination} />
             </div>
           </div>
         </div>
