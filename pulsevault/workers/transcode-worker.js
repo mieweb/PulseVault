@@ -318,6 +318,8 @@ if (require.main === module) {
   let videoDir = process.env.VIDEO_DIR || path.join(mediaRoot, 'videos')
   let auditDir = process.env.AUDIT_DIR || path.join(mediaRoot, 'audit')
 
+  // Check if media root exists and is writable
+  let useTempDir = false
   if (process.env.NODE_ENV !== 'production' && mediaRoot === '/mnt/media') {
     try {
       if (!fs.existsSync(mediaRoot)) {
@@ -331,13 +333,16 @@ if (require.main === module) {
         videoDir = path.join(tempBase, 'videos')
         auditDir = path.join(tempBase, 'audit')
         console.log(`Using temp directory: ${tempBase}`)
-        
-        for (const dir of [mediaRoot, videoDir, auditDir]) {
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true, mode: 0o750 })
-          }
-        }
+        useTempDir = true
       }
+    }
+  }
+
+  // Ensure directories exist (for both production and development)
+  for (const dir of [videoDir, auditDir]) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o750 })
+      console.log(`Created directory: ${dir}`)
     }
   }
 

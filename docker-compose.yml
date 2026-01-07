@@ -23,6 +23,11 @@ services:
     restart: unless-stopped
     # Ports not exposed - accessed via nginx only (internal Docker network)
     # Environment variables loaded from .env file in pulsevault directory
+    environment:
+      - MEDIA_ROOT=/media
+      - VIDEO_DIR=/media/videos
+      - UPLOAD_DIR=/media/uploads
+      - AUDIT_DIR=/media/audit
     volumes:
       - media-storage:/media
     depends_on:
@@ -49,6 +54,10 @@ services:
     # Note: container_name removed to allow scaling with replicas
     restart: unless-stopped
     # Environment variables loaded from .env file in pulsevault directory
+    environment:
+      - MEDIA_ROOT=/media
+      - VIDEO_DIR=/media/videos
+      - AUDIT_DIR=/media/audit
     volumes:
       - media-storage:/media
     depends_on:
