@@ -124,17 +124,32 @@ module.exports = async function (fastify, opts) {
       fastify.log.warn({ uploadId }, 'Upload finalized without token (token requirement disabled)')
     }
     
-    // Use userId from token if available, otherwise use provided userId or default
-    const finalUserId = tokenPayload?.userId || userId || 'anonymous'
-    const organizationId = tokenPayload?.organizationId || null
-    
-    // Use draftId from token as videoId if provided, otherwise generate new UUID
-    const draftId = tokenPayload?.draftId || null
-    const videoId = draftId || uuidv4()
-    
-    if (draftId) {
-      fastify.log.info({ draftId, videoId }, 'Using draftId as videoId')
+    // ENFORCE: Require draftId in token payload (all uploads must have a draft)
+    if (!tokenPayload?.draftId) {
+      fastify.log.warn({ uploadId, hasToken: !!tokenPayload }, 'Upload rejected: draftId required')
+      return reply.code(400).send({
+        error: 'Draft ID required',
+        reason: 'All uploads must be associated with a draft. Please create a draft first and scan the QR code.'
+      })
     }
+    
+    // Use userId from token (required since draftId is required)
+    const finalUserId = tokenPayload.userId
+    if (!finalUserId) {
+      fastify.log.warn({ uploadId, tokenId: tokenPayload.tokenId }, 'Upload rejected: userId missing in token')
+      return reply.code(400).send({
+        error: 'User ID required',
+        reason: 'Token must include userId. Please scan a valid QR code.'
+      })
+    }
+    
+    const organizationId = tokenPayload.organizationId || null
+
+    // Use draftId from token as videoId (required)
+    const draftId = tokenPayload.draftId
+    const videoId = draftId
+    
+    fastify.log.info({ draftId, videoId, userId: finalUserId }, 'Using draftId as videoId')
     
     const videoDir = path.join(fastify.config.videoDir, videoId)
     const uploadPath = path.join(fastify.config.uploadDir, uploadId)
