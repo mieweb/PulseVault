@@ -336,17 +336,18 @@ module.exports = async function (fastify, opts) {
       return reply.unauthorized(tokenCheck.reason)
     }
 
-    // Try cache first
-    let metadata = await fastify.queue.getCachedMetadata(videoId)
-
-    if (!metadata) {
-      // Read from disk
-      const videoDir = path.join(fastify.config.videoDir, videoId)
-      try {
-        metadata = await MetadataWriter.readMetadata(videoDir)
-        // Cache for future requests
-        await fastify.queue.cacheMetadata(videoId, metadata)
-      } catch (err) {
+    // Always read from disk to ensure we get the latest status
+    // (Cache can be stale if transcode worker updates metadata but doesn't update cache)
+    const videoDir = path.join(fastify.config.videoDir, videoId)
+    let metadata
+    try {
+      metadata = await MetadataWriter.readMetadata(videoDir)
+      // Update cache with latest metadata
+      await fastify.queue.cacheMetadata(videoId, metadata)
+    } catch (err) {
+      // Fallback to cache if disk read fails
+      metadata = await fastify.queue.getCachedMetadata(videoId)
+      if (!metadata) {
         return reply.notFound('Video metadata not found')
       }
     }

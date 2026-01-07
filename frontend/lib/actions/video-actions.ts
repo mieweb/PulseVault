@@ -221,18 +221,27 @@ export async function getVideo(videoId: string) {
             path: "hls/master.m3u8",
             expiresIn: 3600, // 1 hour
           }),
-  });
+        });
 
         if (playbackSignResponse.ok) {
-          const { url: playbackSignedUrl } = await playbackSignResponse.json();
-          // Convert relative URL to absolute URL
-          const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
-                           process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
-                           "http://localhost:8080";
-  
-          playbackUrl = playbackSignedUrl.startsWith('http') 
-            ? playbackSignedUrl 
-            : `${publicUrl}${playbackSignedUrl}`;
+          const signData = await playbackSignResponse.json();
+          const playbackSignedUrl = signData.url;
+          
+          if (!playbackSignedUrl) {
+            console.error("Playback URL signing returned empty URL:", signData);
+          } else {
+            // Convert relative URL to absolute URL
+            const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                             process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
+                             "http://localhost:8080";
+    
+            playbackUrl = playbackSignedUrl.startsWith('http') 
+              ? playbackSignedUrl 
+              : `${publicUrl}${playbackSignedUrl}`;
+          }
+        } else {
+          const errorText = await playbackSignResponse.text().catch(() => '');
+          console.error(`Failed to sign playback URL: ${playbackSignResponse.status} ${playbackSignResponse.statusText}`, errorText);
         }
       } catch (error) {
         console.error("Failed to generate playback URL:", error);

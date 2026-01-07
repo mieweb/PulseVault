@@ -28,8 +28,8 @@ export default async function WatchPage({ params }: WatchPageProps) {
           <p className="text-muted-foreground mb-4">
             The video you're looking for doesn't exist or has been removed.
           </p>
-          <Link href="/feed">
-            <Button variant="outline">Back to Feed</Button>
+          <Link href="/dashboard">
+            <Button variant="outline">Back to Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -42,10 +42,10 @@ export default async function WatchPage({ params }: WatchPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/feed">
+        <Link href="/dashboard">
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Feed
+            Back to Dashboard
           </Button>
         </Link>
 
@@ -57,8 +57,21 @@ export default async function WatchPage({ params }: WatchPageProps) {
           </div>
 
           <div className="bg-card rounded-lg border border-border overflow-hidden">
-            {isReady && video.playbackUrl ? (
-              <VideoPlayer videoUrl={video.playbackUrl} className="w-full" />
+            {isReady ? (
+              video.playbackUrl ? (
+                <VideoPlayer videoUrl={video.playbackUrl} className="w-full" />
+              ) : (
+                <div className="aspect-video bg-muted flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-muted-foreground mb-2">
+                      Video is ready but playback URL is unavailable
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Please refresh the page or try again later
+                    </p>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="aspect-video bg-muted flex items-center justify-center">
                 <div className="text-center">
