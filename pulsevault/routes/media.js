@@ -273,6 +273,57 @@ module.exports = async function (fastify, opts) {
   })
 
   /**
+   * List all videos (scan storage directory)
+   * Returns list of videos with basic metadata
+   */
+  fastify.get('/media/videos', async (request, reply) => {
+    const videoDir = fastify.config.videoDir
+    
+    if (!fs.existsSync(videoDir)) {
+      return []
+    }
+
+    const videoIds = await fs.promises.readdir(videoDir, { withFileTypes: true })
+    const videos = []
+
+    // Process each video directory
+    for (const dirent of videoIds) {
+      if (!dirent.isDirectory()) continue
+      
+      const videoId = dirent.name
+      const videoPath = path.join(videoDir, videoId)
+      
+      try {
+        // Try to read metadata
+        const metadata = await MetadataWriter.readMetadata(videoPath)
+        
+        // Only include videos that have been transcoded
+        // Filter out videos that are still uploading or failed
+        if (metadata.status === 'transcoded') {
+          // Remove sensitive fields
+          const { checksum, ...publicMetadata } = metadata
+          videos.push({
+            videoId,
+            ...publicMetadata
+          })
+        }
+      } catch (err) {
+        // Skip videos without metadata or with errors
+        fastify.log.debug({ videoId, err: err.message }, 'Skipping video without metadata')
+      }
+    }
+
+    // Sort by transcodedAt (most recent first), fallback to uploadedAt
+    videos.sort((a, b) => {
+      const aTime = a.transcodedAt || a.uploadedAt || 0
+      const bTime = b.transcodedAt || b.uploadedAt || 0
+      return new Date(bTime) - new Date(aTime)
+    })
+
+    return videos
+  })
+
+  /**
    * Get video metadata
    */
   fastify.get('/media/videos/:videoId/metadata', async (request, reply) => {
