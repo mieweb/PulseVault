@@ -3,11 +3,11 @@
 import { getSession } from "@/lib/get-session";
 import { unauthorized } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import prisma from "@/lib/prisma";
 
 /**
  * Generate QR code for mobile upload
- * Creates a draft first, then generates QR code with draftId
+ * Generates draftId (UUID) - NO database entry created
+ * Videos are stored in backend storage with metadata, no DB needed
  */
 export async function generateUploadQRCode() {
   const session = await getSession();
@@ -15,15 +15,15 @@ export async function generateUploadQRCode() {
     unauthorized();
   }
 
-  // Create draft first
-  const draft = await createVideoDraft();
+  // Generate draftId (UUID) - just for caching on device, no DB entry yet
+  const draftId = uuidv4();
 
   // Get backend URL from environment or use default
   const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
   const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:8080";
 
   // Call backend to generate QR code with draftId
-  const response = await fetch(`${backendUrl}/qr/deeplink?userId=${session.user.id}&draftId=${draft.videoId}&server=${encodeURIComponent(serverUrl)}`, {
+  const response = await fetch(`${backendUrl}/qr/deeplink?userId=${session.user.id}&draftId=${draftId}&server=${encodeURIComponent(serverUrl)}`, {
     method: "GET",
   });
 
@@ -35,8 +35,8 @@ export async function generateUploadQRCode() {
 
   return {
     ...qrData,
-    draftId: draft.videoId,
-    videoId: draft.videoId, // Same as draftId
+    draftId: draftId,
+    videoId: draftId, // Same as draftId
   };
 }
 
@@ -56,252 +56,209 @@ export type QRCodeData = {
 };
 
 /**
- * Create a new video draft in the database
- * Returns the draftId (which will be used as videoId)
+ * Get all videos (for feed) - fetched directly from backend storage
+ * No database entries needed - all data comes from storage metadata
  */
-export async function createVideoDraft(title?: string, description?: string) {
-  const session = await getSession();
-  if (!session?.user) {
-    unauthorized();
+export async function getAllVideos(page = 1, limit = 20) {
+  const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
+  
+  try {
+    // Fetch all videos from backend storage
+    const response = await fetch(`${backendUrl}/media/videos`, {
+      method: "GET",
+      cache: "no-store", // Always fetch fresh data
+    });
+  
+    if (!response.ok) {
+      console.error(`Failed to fetch videos: ${response.status} ${response.statusText}`);
+      return {
+        videos: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+
+    const allVideos = await response.json();
+    
+    // Backend already filters to only transcoded videos, but double-check
+    const transcodedVideos = allVideos.filter((v: any) => 
+      v.status === "transcoded"
+    );
+
+    // Paginate
+    const skip = (page - 1) * limit;
+    const total = transcodedVideos.length;
+    const paginatedVideos = transcodedVideos.slice(skip, skip + limit);
+  
+    // Get user info for each video (from userId in metadata)
+    // Note: We'll need to fetch user data separately or include it in metadata
+    const videosWithUsers = await Promise.all(
+      paginatedVideos.map(async (video: any) => {
+        // Get user info if userId exists in metadata
+        let user = null;
+        if (video.userId) {
+          try {
+            // Import prisma only for user lookup
+            const { default: prisma } = await import("@/lib/prisma");
+            const userData = await prisma.user.findUnique({
+              where: { id: video.userId },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            });
+            user = userData;
+          } catch (err) {
+            console.error(`Failed to fetch user ${video.userId}:`, err);
+          }
+        }
+
+        return {
+          ...video,
+          user,
+        };
+      })
+    );
+
+    return {
+      videos: videosWithUsers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching videos from backend:", error);
+    return {
+      videos: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      },
+    };
   }
-
-  const videoId = uuidv4(); // This will be used as the videoId in the backend
-
-  const video = await prisma.video.create({
-    data: {
-      videoId,
-      userId: session.user.id,
-      title: title || null,
-      description: description || null,
-      status: "draft",
-    },
-  });
-
-  return {
-    id: video.id,
-    videoId: video.videoId,
-    status: video.status,
-  };
 }
 
 /**
- * Get user's videos from database
+ * Get single video by videoId with signed playback URL
+ * Fetches directly from backend storage metadata
  */
-export async function getUserVideos(userId: string, page = 1, limit = 20) {
-  const session = await getSession();
-  if (!session?.user) {
-    unauthorized();
-  }
+export async function getVideo(videoId: string) {
+  const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
+  
+  try {
+    // Get signed URL for metadata
+    const signResponse = await fetch(`${backendUrl}/media/sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId,
+        path: "metadata",
+        expiresIn: 300,
+      }),
+    });
 
-  // Only allow users to see their own videos (unless admin)
-  if (session.user.id !== userId && session.user.role !== "admin") {
-    unauthorized();
-  }
+    if (!signResponse.ok) {
+      console.error(`Failed to sign metadata URL: ${signResponse.status}`);
+      return null;
+    }
 
-  const skip = (page - 1) * limit;
+    const { url: metadataUrl } = await signResponse.json();
+    
+    // Construct full URL if relative
+    let fullMetadataUrl = metadataUrl;
+    if (!metadataUrl.startsWith('http://') && !metadataUrl.startsWith('https://')) {
+      fullMetadataUrl = `${backendUrl}${metadataUrl}`;
+    }
 
-  const [videos, total] = await Promise.all([
-    prisma.video.findMany({
-      where: {
-        userId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      skip,
-      take: limit,
-    }),
-    prisma.video.count({
-      where: {
-        userId,
-      },
-    }),
-  ]);
+    // Fetch metadata
+    const metadataResponse = await fetch(fullMetadataUrl);
+    if (!metadataResponse.ok) {
+      console.error(`Failed to fetch metadata: ${metadataResponse.status}`);
+      return null;
+    }
 
-  return {
-    videos,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
-}
+    const metadata = await metadataResponse.json();
 
-/**
- * Get all videos (for feed)
- */
-export async function getAllVideos(page = 1, limit = 20, status = "transcoded") {
-  const skip = (page - 1) * limit;
-
-  const [videos, total] = await Promise.all([
-    prisma.video.findMany({
-      where: {
-        status,
-      },
-      include: {
-        user: {
+    // Get user info if userId exists
+    let user = null;
+    if (metadata.userId) {
+      try {
+        const { default: prisma } = await import("@/lib/prisma");
+        user = await prisma.user.findUnique({
+          where: { id: metadata.userId },
           select: {
             id: true,
             name: true,
             email: true,
             image: true,
           },
-        },
-      },
-      orderBy: {
-        uploadedAt: "desc",
-      },
-      skip,
-      take: limit,
-    }),
-    prisma.video.count({
-      where: {
-        status,
-      },
-    }),
-  ]);
+        });
+      } catch (err) {
+        console.error(`Failed to fetch user ${metadata.userId}:`, err);
+      }
+    }
 
-  return {
-    videos,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    },
-  };
+    // Generate playback URL only for transcoded videos
+    let playbackUrl: string | null = null;
+    if (metadata.status === "transcoded") {
+      try {
+        const playbackSignResponse = await fetch(`${backendUrl}/media/sign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            videoId,
+            path: "hls/master.m3u8",
+            expiresIn: 3600, // 1 hour
+          }),
+  });
+
+        if (playbackSignResponse.ok) {
+          const { url: playbackSignedUrl } = await playbackSignResponse.json();
+          // Convert relative URL to absolute URL
+          const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                           process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
+                           "http://localhost:8080";
+  
+          playbackUrl = playbackSignedUrl.startsWith('http') 
+            ? playbackSignedUrl 
+            : `${publicUrl}${playbackSignedUrl}`;
+        }
+      } catch (error) {
+        console.error("Failed to generate playback URL:", error);
+      }
+    }
+
+    return {
+      videoId: metadata.videoId || videoId,
+      userId: metadata.userId,
+      status: metadata.status,
+      filename: metadata.filename,
+      originalSize: metadata.originalSize,
+      duration: metadata.duration,
+      width: metadata.width || metadata.dimensions?.width,
+      height: metadata.height || metadata.dimensions?.height,
+      renditions: metadata.renditions || [],
+      transcodedAt: metadata.transcodedAt ? new Date(metadata.transcodedAt) : null,
+      uploadedAt: metadata.uploadedAt ? new Date(metadata.uploadedAt) : null,
+      createdAt: metadata.uploadedAt ? new Date(metadata.uploadedAt) : new Date(),
+      user,
+      playbackUrl,
+    };
+  } catch (error) {
+    console.error(`Error fetching video ${videoId}:`, error);
+    return null;
+}
 }
 
-/**
- * Get single video by videoId
- */
-export async function getVideo(videoId: string) {
-  const video = await prisma.video.findUnique({
-    where: {
-      videoId,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-        },
-      },
-    },
-  });
-
-  return video;
-}
-
-/**
- * Update video status after upload/transcoding
- * This can be called by the frontend after checking backend metadata
- */
-export async function updateVideoStatus(
-  videoId: string,
-  status: "uploaded" | "transcoding" | "transcoded" | "failed",
-  metadata?: {
-    filename?: string;
-    originalSize?: number;
-    duration?: number;
-    width?: number;
-    height?: number;
-    renditions?: string[];
-  }
-) {
-  const session = await getSession();
-  if (!session?.user) {
-    unauthorized();
-  }
-
-  // Get video to check ownership
-  const video = await prisma.video.findUnique({
-    where: {
-      videoId,
-    },
-  });
-
-  if (!video) {
-    throw new Error("Video not found");
-  }
-
-  // Only allow owner or admin to update
-  if (video.userId !== session.user.id && session.user.role !== "admin") {
-    unauthorized();
-  }
-
-  const updateData: any = {
-    status,
-    updatedAt: new Date(),
-  };
-
-  if (status === "uploaded" && !video.uploadedAt) {
-    updateData.uploadedAt = new Date();
-  }
-
-  if (status === "transcoded" && !video.transcodedAt) {
-    updateData.transcodedAt = new Date();
-  }
-
-  if (metadata) {
-    if (metadata.filename) updateData.filename = metadata.filename;
-    if (metadata.originalSize) updateData.originalSize = metadata.originalSize;
-    if (metadata.duration) updateData.duration = metadata.duration;
-    if (metadata.width) updateData.width = metadata.width;
-    if (metadata.height) updateData.height = metadata.height;
-    if (metadata.renditions) updateData.renditions = metadata.renditions;
-  }
-
-  const updated = await prisma.video.update({
-    where: {
-      videoId,
-    },
-    data: updateData,
-  });
-
-  return updated;
-}
-
-/**
- * Update video title/description
- */
-export async function updateVideoMetadata(
-  videoId: string,
-  title?: string,
-  description?: string
-) {
-  const session = await getSession();
-  if (!session?.user) {
-    unauthorized();
-  }
-
-  const video = await prisma.video.findUnique({
-    where: {
-      videoId,
-    },
-  });
-
-  if (!video) {
-    throw new Error("Video not found");
-  }
-
-  if (video.userId !== session.user.id && session.user.role !== "admin") {
-    unauthorized();
-  }
-
-  const updated = await prisma.video.update({
-    where: {
-      videoId,
-    },
-    data: {
-      title: title ?? video.title,
-      description: description ?? video.description,
-    },
-  });
-
-  return updated;
-}
+// Removed syncVideoStatus - no longer needed since we fetch directly from backend storage
