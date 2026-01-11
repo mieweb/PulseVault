@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { VideoCard } from "./video-card";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { VideoFeedCard } from "./video-feed-card";
 import { Loader2 } from "lucide-react";
 import { getAllVideos } from "@/lib/actions/video-actions";
 
@@ -12,6 +11,7 @@ type Video = {
   filename?: string | null;
   duration?: number | null;
   status: string;
+  playbackUrl?: string | null;
   user?: {
     id: string;
     name: string;
@@ -34,8 +34,9 @@ export function VideoFeed({ initialVideos, initialPagination }: VideoFeedProps) 
   const [pagination, setPagination] = useState(initialPagination);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const loadMore = async () => {
+  const loadMore = useCallback(async () => {
     if (pagination.page >= pagination.totalPages || loading) return;
 
     setLoading(true);
@@ -43,7 +44,7 @@ export function VideoFeed({ initialVideos, initialPagination }: VideoFeedProps) 
     try {
       const nextPage = pagination.page + 1;
       const data = await getAllVideos(nextPage, 20);
-      setVideos([...videos, ...data.videos]);
+      setVideos((prevVideos) => [...prevVideos, ...data.videos]);
       setPagination(data.pagination);
     } catch (err) {
       setError("Failed to load more videos");
@@ -51,7 +52,34 @@ export function VideoFeed({ initialVideos, initialPagination }: VideoFeedProps) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.totalPages, loading]);
+
+  // Intersection Observer for auto-pagination
+  useEffect(() => {
+    if (!loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+        if (firstEntry?.isIntersecting && !loading && pagination.page < pagination.totalPages) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "200px", // Start loading 200px before reaching the element
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [loadMore, loading, pagination.page, pagination.totalPages]);
 
   if (videos.length === 0) {
     return (
@@ -63,34 +91,34 @@ export function VideoFeed({ initialVideos, initialPagination }: VideoFeedProps) 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Instagram-style vertical feed */}
+      <div className="max-w-2xl mx-auto space-y-6">
         {videos.map((video) => (
-          <VideoCard key={video.videoId} video={video} />
+          <VideoFeedCard key={video.videoId} video={video} />
         ))}
       </div>
 
+      {/* Intersection observer target for auto-loading */}
       {pagination.page < pagination.totalPages && (
-        <div className="flex justify-center">
-          <Button
-            onClick={loadMore}
-            disabled={loading}
-            variant="outline"
-            className="w-full sm:w-auto"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load More"
-            )}
-          </Button>
+        <div ref={loadMoreRef} className="flex justify-center py-4">
+          {loading && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">Loading more videos...</span>
+            </div>
+          )}
         </div>
       )}
 
       {error && (
         <div className="text-center text-destructive text-sm">{error}</div>
+      )}
+
+      {/* Show message when all videos are loaded */}
+      {pagination.page >= pagination.totalPages && videos.length > 0 && (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">No more videos</p>
+        </div>
       )}
     </div>
   );

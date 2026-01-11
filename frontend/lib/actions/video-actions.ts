@@ -119,9 +119,43 @@ export async function getAllVideos(page = 1, limit = 20) {
           }
         }
 
+        // Generate playback URL for transcoded videos
+        let playbackUrl: string | null = null;
+        if (video.status === "transcoded") {
+          try {
+            const playbackSignResponse = await fetch(`${backendUrl}/media/sign`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                videoId: video.videoId,
+                path: "hls/master.m3u8",
+                expiresIn: 3600, // 1 hour
+              }),
+            });
+
+            if (playbackSignResponse.ok) {
+              const signData = await playbackSignResponse.json();
+              const playbackSignedUrl = signData.url;
+              
+              if (playbackSignedUrl) {
+                const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                                 process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
+                                 "http://localhost:8080";
+        
+                playbackUrl = playbackSignedUrl.startsWith('http') 
+                  ? playbackSignedUrl 
+                  : `${publicUrl}${playbackSignedUrl}`;
+              }
+            }
+          } catch (error) {
+            console.error(`Failed to generate playback URL for ${video.videoId}:`, error);
+          }
+        }
+
         return {
           ...video,
           user,
+          playbackUrl,
         };
       })
     );

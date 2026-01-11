@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogIn, LogOut, User, Shield, LayoutDashboard } from "lucide-react";
+import { LogIn, LogOut, User, Shield, LayoutDashboard, Upload } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { signOut } from "@/lib/actions/auth-actions";
@@ -89,6 +89,16 @@ export default function Navbar({ session }: { session?: Session | null }) {
               <>
                 {isLoggedIn ? (
                   <>
+                    {/* Upload Button */}
+                    <Link href="/upload">
+                      <Button
+                        variant="outline"
+                        className="border-border hover:bg-muted"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline-block">Upload</span>
+                      </Button>
+                    </Link>
                     {/* Dashboard Button */}
                     <Link href="/dashboard">
                       <Button
