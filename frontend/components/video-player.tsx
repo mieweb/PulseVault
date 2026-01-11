@@ -117,7 +117,7 @@ export function VideoPlayer({ videoUrl, className }: VideoPlayerProps) {
   }
 
   return (
-    <div className={`relative bg-black rounded-lg overflow-hidden ${className}`}>
+    <div className={`relative bg-black rounded-lg overflow-hidden flex items-center justify-center ${className}`}>
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
           <Loader2 className="h-8 w-8 text-white animate-spin" />
@@ -126,7 +126,7 @@ export function VideoPlayer({ videoUrl, className }: VideoPlayerProps) {
       <video
         ref={videoRef}
         controls
-        className="w-full"
+        className="w-full h-full max-h-full object-contain"
         autoPlay={false}
         playsInline
       />
