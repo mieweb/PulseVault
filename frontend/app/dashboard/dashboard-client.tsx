@@ -2,6 +2,7 @@
 
 import { Session } from "@/lib/auth";
 import { VideoFeed } from "@/components/video-feed";
+import { StoreBadges } from "@/components/store-badges";
 
 type Video = {
   videoId: string;
@@ -32,6 +33,16 @@ export default function DashboardClient({ session, initialVideos, initialPaginat
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-0 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        {/* Get the Pulse app — App Store & Google Play */}
+        <div className="mb-4 sm:mb-6 px-4 sm:px-0">
+          <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm px-4 py-4">
+            <StoreBadges
+              heading="Record on the go — get the Pulse app for iPhone, iPad & Android"
+              layout="inline"
+              size="md"
+            />
+          </div>
+        </div>
         {/* Scrollable Feed */}
         <div className="overflow-y-auto">
           <VideoFeed initialVideos={initialVideos} initialPagination={initialPagination} />
