@@ -14,6 +14,7 @@ import {
   Heart,
   ArrowRight,
 } from "lucide-react";
+import { StoreBadges } from "@/components/store-badges";
 
 export default function Home() {
   const features = [
@@ -85,17 +86,23 @@ export default function Home() {
               HIPAA-compliant platform for uploading short-form videos, viewing them in an infinite feed, and securely sharing encrypted content
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-4 sm:mt-6">
+            <div className="flex flex-col gap-6 mt-4 sm:mt-6">
               <Button
                 asChild
                 size="lg"
-                className="text-sm sm:text-base md:text-lg px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 bg-destructive hover:bg-destructive/90 text-white border-0 rounded-full shadow-lg shadow-destructive/50 hover:shadow-destructive/70 transition-all duration-300 group font-bold"
+                className="text-sm sm:text-base md:text-lg px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 bg-destructive hover:bg-destructive/90 text-white border-0 rounded-full shadow-lg shadow-destructive/50 hover:shadow-destructive/70 transition-all duration-300 group font-bold w-fit mx-auto"
               >
                 <Link href="/auth" className="flex items-center gap-1.5 sm:gap-2">
                   Get Started
                   <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </Button>
+              <StoreBadges
+                heading="Don't have PulseCam?"
+                layout="inline"
+                size="lg"
+                className="flex flex-col items-center"
+              />
             </div>
           </div>
         </div>
