@@ -43,7 +43,7 @@ export function StoreBadges({
         </p>
       )}
       <div
-        className={`flex flex-wrap items-center gap-3 ${
+        className={`flex flex-wrap items-center justify-center gap-3 ${
           layout === "stack" ? "flex-col sm:flex-row" : "flex-row"
         }`}
       >
