@@ -113,4 +113,6 @@ module.exports = fp(async function (fastify, opts) {
   fastify.decorate('config', config)
 
   fastify.log.info(`PulseVault configuration loaded (env: ${config.nodeEnv})`)
+}, {
+  name: 'config'
 })

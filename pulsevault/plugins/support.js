@@ -12,7 +12,7 @@ module.exports = fp(async function (fastify, opts) {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'X-Upload-Token'],
     exposedHeaders: ['Content-Range', 'Content-Length', 'Upload-Offset', 'Upload-Length'],
-    credentials: false
+    credentials: true
   })
 
   fastify.decorate('someSupport', function () {
