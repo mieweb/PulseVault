@@ -23,7 +23,7 @@ export default function UploadClient({ session }: {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+      <div className="max-w-2xl md:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-card-foreground">Upload from Mobile</h1>
@@ -37,19 +37,23 @@ export default function UploadClient({ session }: {
             )}
           </p>
         </div>
-        
-        <div className="w-full max-w-md mx-auto space-y-6">
-          {/* Setup your app: add this vault as upload destination (30-day token) */}
-          <ConfigureAppCard />
-          {isMobile === null ? (
-            <div className="py-8 text-center text-muted-foreground text-sm">
-              Loading...
-            </div>
-          ) : isMobile ? (
-            <UploadMobileOpenCard />
-          ) : (
-            <UploadQRCard />
-          )}
+
+        {/* Desktop: side by side | Mobile: stacked */}
+        <div className="flex flex-col gap-6 md:flex-row md:gap-8 md:items-stretch">
+          <div className="w-full md:min-w-0 md:flex-1">
+            <ConfigureAppCard />
+          </div>
+          <div className="w-full md:min-w-0 md:flex-1">
+            {isMobile === null ? (
+              <div className="py-8 text-center text-muted-foreground text-sm rounded-lg border border-border bg-card">
+                Loading...
+              </div>
+            ) : isMobile ? (
+              <UploadMobileOpenCard />
+            ) : (
+              <UploadQRCard />
+            )}
+          </div>
         </div>
       </div>
     </div>
