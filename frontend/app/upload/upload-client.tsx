@@ -3,6 +3,7 @@
 import { Session } from "@/lib/auth";
 import { UploadQRCard } from "@/components/upload-qr-card";
 import { UploadMobileOpenCard } from "@/components/upload-mobile-open-card";
+import { ConfigureAppCard } from "@/components/configure-app-card";
 import { useEffect, useState } from "react";
 
 function isMobileDevice(): boolean {
@@ -37,7 +38,9 @@ export default function UploadClient({ session }: {
           </p>
         </div>
         
-        <div className="w-full max-w-md mx-auto">
+        <div className="w-full max-w-md mx-auto space-y-6">
+          {/* Setup your app: add this vault as upload destination (30-day token) */}
+          <ConfigureAppCard />
           {isMobile === null ? (
             <div className="py-8 text-center text-muted-foreground text-sm">
               Loading...

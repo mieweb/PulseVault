@@ -92,6 +92,75 @@ module.exports = async function (fastify, opts) {
    * Generate QR code data for deeplink with signed token
    * Returns the deeplink URL that can be encoded as QR code
    */
+  /**
+   * Generate deeplink for "configure destination" (setup app) - long-lived token, no draftId.
+   * App will send draftId at finalize when using this token.
+   * Default expiry 30 days.
+   */
+  fastify.get('/qr/configure-destination', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          server: { type: 'string' },
+          userId: { type: 'string' },
+          organizationId: { type: 'string' },
+          expiresIn: { type: 'number', default: 2592000 } // 30 days default
+        }
+      }
+    }
+  }, async (request, reply) => {
+    const {
+      server,
+      userId = 'anonymous',
+      organizationId,
+      expiresIn = 2592000
+    } = request.query
+
+    // Get server URL from query or request
+    let serverUrl = server
+    if (!serverUrl) {
+      const protocol = request.headers['x-forwarded-proto'] || (request.protocol || 'http')
+      const host = request.headers.host || `${fastify.config.host}:${fastify.config.port}`
+      serverUrl = `${protocol}://${host}`
+    }
+    if (serverUrl && !serverUrl.includes('://')) {
+      serverUrl = `http://${serverUrl}`
+    }
+    try {
+      const parsed = new URL(serverUrl)
+      serverUrl = `${parsed.protocol}//${parsed.host}`
+    } catch (e) {
+      if (!serverUrl.includes('://')) serverUrl = `http://${serverUrl}`
+    }
+
+    const tokenData = generateUploadToken(serverUrl, {
+      userId,
+      organizationId,
+      draftId: null, // destination token: no draftId; app sends at finalize
+      expiresIn: parseInt(expiresIn, 10)
+    })
+
+    const params = new URLSearchParams({
+      mode: 'configure_destination',
+      server: serverUrl,
+      token: tokenData.token
+    })
+    const deeplinkUrl = `pulsecam://?${params.toString()}`
+
+    return {
+      deeplink: deeplinkUrl,
+      server: serverUrl,
+      token: tokenData.token,
+      expiresAt: tokenData.expiresAt,
+      expiresIn: tokenData.expiresIn,
+      tokenId: tokenData.tokenId,
+      userId,
+      organizationId: organizationId || null,
+      qrData: deeplinkUrl
+    }
+  })
+
   fastify.get('/qr/deeplink', {
     schema: {
       querystring: {
