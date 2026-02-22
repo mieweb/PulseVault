@@ -78,6 +78,9 @@ module.exports = async function (fastify, opts) {
     }
   }
 
+  // UUID v4 format check for client-supplied draftId
+  const isUUIDv4 = (s) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s)
+
   fastify.post('/uploads/finalize', {
     schema: {
       body: {
@@ -88,12 +91,13 @@ module.exports = async function (fastify, opts) {
           filename: { type: 'string' },
           userId: { type: 'string' },
           uploadToken: { type: 'string' },
+          draftId: { type: 'string' },
           metadata: { type: 'object' }
         }
       }
     }
   }, async (request, reply) => {
-    const { uploadId, filename, userId, uploadToken, metadata = {} } = request.body
+    const { uploadId, filename, userId, uploadToken, draftId: bodyDraftId, metadata = {} } = request.body
     
     // Get token from body or header (header takes precedence)
     const token = uploadToken || request.headers['x-upload-token']
@@ -124,8 +128,21 @@ module.exports = async function (fastify, opts) {
       fastify.log.warn({ uploadId }, 'Upload finalized without token (token requirement disabled)')
     }
     
-    // ENFORCE: Require draftId in token payload (all uploads must have a draft)
-    if (!tokenPayload?.draftId) {
+    // draftId: from token (per-draft QR) or from body (destination token - app sends draftId)
+    let draftId = tokenPayload?.draftId
+    if (!draftId && tokenPayload) {
+      if (bodyDraftId && isUUIDv4(bodyDraftId)) {
+        draftId = bodyDraftId
+        fastify.log.info({ uploadId, draftId }, 'Using client-supplied draftId (destination token)')
+      } else {
+        fastify.log.warn({ uploadId }, 'Upload rejected: destination token requires draftId in body')
+        return reply.code(400).send({
+          error: 'Draft ID required',
+          reason: 'Please send draftId in the request body when using a destination token.'
+        })
+      }
+    }
+    if (!draftId) {
       fastify.log.warn({ uploadId, hasToken: !!tokenPayload }, 'Upload rejected: draftId required')
       return reply.code(400).send({
         error: 'Draft ID required',
@@ -133,20 +150,18 @@ module.exports = async function (fastify, opts) {
       })
     }
     
-    // Use userId from token (required since draftId is required)
-    const finalUserId = tokenPayload.userId
+    // Use userId from token
+    const finalUserId = tokenPayload?.userId
     if (!finalUserId) {
-      fastify.log.warn({ uploadId, tokenId: tokenPayload.tokenId }, 'Upload rejected: userId missing in token')
+      fastify.log.warn({ uploadId, tokenId: tokenPayload?.tokenId }, 'Upload rejected: userId missing in token')
       return reply.code(400).send({
         error: 'User ID required',
         reason: 'Token must include userId. Please scan a valid QR code.'
       })
     }
     
-    const organizationId = tokenPayload.organizationId || null
+    const organizationId = tokenPayload?.organizationId || null
 
-    // Use draftId from token as videoId (required)
-    const draftId = tokenPayload.draftId
     const videoId = draftId
     
     fastify.log.info({ draftId, videoId, userId: finalUserId }, 'Using draftId as videoId')

@@ -56,6 +56,40 @@ export type QRCodeData = {
 };
 
 /**
+ * Generate "Configure app" deeplink - long-lived destination token (no draftId).
+ * Pulse app adds this server as an upload destination; draftId is sent by app at upload time.
+ * Token valid 30 days by default.
+ */
+export async function generateConfigureAppDeeplink() {
+  const session = await getSession();
+  if (!session?.user) {
+    unauthorized();
+  }
+
+  const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
+  const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:8080";
+  const expiresIn = 30 * 24 * 60 * 60; // 30 days in seconds
+
+  const response = await fetch(
+    `${backendUrl}/qr/configure-destination?userId=${session.user.id}&server=${encodeURIComponent(serverUrl)}&expiresIn=${expiresIn}`,
+    { method: "GET" }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to generate configure app link");
+  }
+
+  const data = await response.json();
+  return {
+    deeplink: data.deeplink,
+    server: data.server,
+    expiresAt: data.expiresAt,
+    expiresIn: data.expiresIn,
+    qrData: data.qrData,
+  };
+}
+
+/**
  * Get all videos (for feed) - fetched directly from backend storage
  * No database entries needed - all data comes from storage metadata
  */
