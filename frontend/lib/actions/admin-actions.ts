@@ -182,3 +182,24 @@ export const isAdmin = async (): Promise<boolean> => {
     return false;
   }
 };
+
+/**
+ * Fetch top videos by 50% watch rate from backend (Admin only)
+ */
+export const getTopVideos = async (): Promise<{ videoId: string; watched50Count: number }[]> => {
+  await requireAdmin();
+
+  const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
+  const hmacSecret = process.env.HMAC_SECRET || "change-me-in-production";
+
+  const res = await fetch(`${backendUrl}/admin/analytics/top`, {
+    headers: { "x-admin-secret": hmacSecret },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch top videos: ${res.status}`);
+  }
+
+  return res.json();
+};

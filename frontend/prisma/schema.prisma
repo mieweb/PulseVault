@@ -82,3 +82,21 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+model VideoEvent {
+  id        String   @id @default(uuid())
+  videoId   String
+  event     String
+  userId    String
+  ts        DateTime
+  createdAt DateTime @default(now())
+
+  @@map("video_events")
+}
+
+model VideoMetric {
+  videoId        String @id
+  watched50Count Int    @default(0)
+
+  @@map("video_metrics")
+}

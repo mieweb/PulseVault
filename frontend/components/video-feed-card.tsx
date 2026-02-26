@@ -19,6 +19,7 @@ type VideoFeedCardProps = {
       image?: string | null;
     } | null;
   };
+  userId?: string | null;
 };
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -28,7 +29,7 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export function VideoFeedCard({ video }: VideoFeedCardProps) {
+export function VideoFeedCard({ video, userId }: VideoFeedCardProps) {
   const displayTitle = video.filename || "Untitled";
   const isReady = video.status === "transcoded";
 
@@ -39,7 +40,9 @@ export function VideoFeedCard({ video }: VideoFeedCardProps) {
         {isReady && video.playbackUrl ? (
           <div className="w-full aspect-[9/16] sm:aspect-video flex items-center justify-center">
             <VideoPlayer 
-              videoUrl={video.playbackUrl} 
+              videoUrl={video.playbackUrl}
+              videoId={video.videoId}
+              userId={userId}
               className="w-full h-full" 
             />
           </div>
