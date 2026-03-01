@@ -35,7 +35,15 @@ export const auth = betterAuth({
       enabled: true,
     },
   },
-  plugins: [admin(), apiKey(), nextCookies()]
+  plugins: [
+    admin(),
+    apiKey({
+      requireName: true,
+      enableMetadata: true,
+      defaultPrefix: "pv_",
+    }),
+    nextCookies(),
+  ]
 });
 
 export type Session = typeof auth.$Infer.Session;
