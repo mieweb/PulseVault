@@ -3,6 +3,7 @@ import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
+import { apiKey } from "@better-auth/api-key";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -34,7 +35,7 @@ export const auth = betterAuth({
       enabled: true,
     },
   },
-  plugins: [admin(), nextCookies()]
+  plugins: [admin(), apiKey(), nextCookies()]
 });
 
 export type Session = typeof auth.$Infer.Session;
