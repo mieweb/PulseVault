@@ -17,6 +17,9 @@ type Video = {
     name: string;
     image?: string | null;
   } | null;
+  externalApp?: string | null;
+  externalUserEmail?: string | null;
+  externalUserId?: string | null;
 };
 
 type VideoFeedProps = {

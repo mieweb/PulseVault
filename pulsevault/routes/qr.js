@@ -23,13 +23,16 @@ module.exports = async function (fastify, opts) {
       organizationId = null,
       draftId = null,
       expiresIn = 86400, // 24 hours default
-      oneTimeUse = false
+      oneTimeUse = false,
+      externalApp = null,
+      externalUserEmail = null,
+      externalUserId = null
     } = options
 
     const expiresAt = Math.floor(Date.now() / 1000) + expiresIn
     const tokenId = uuidv4()
     
-    // Build token payload
+    // Build token payload (externalApp/externalUser* for "Uploaded via X" on dashboard)
     const payload = {
       server: serverUrl,
       userId,
@@ -39,6 +42,9 @@ module.exports = async function (fastify, opts) {
       tokenId,
       oneTimeUse
     }
+    if (externalApp != null) payload.externalApp = externalApp
+    if (externalUserEmail != null) payload.externalUserEmail = externalUserEmail
+    if (externalUserId != null) payload.externalUserId = externalUserId
 
     // Create HMAC signature
     const message = JSON.stringify(payload)
@@ -171,7 +177,10 @@ module.exports = async function (fastify, opts) {
           userId: { type: 'string' },
           organizationId: { type: 'string' },
           expiresIn: { type: 'number', default: 86400 }, // seconds, default 24h
-          oneTimeUse: { type: 'boolean', default: false }
+          oneTimeUse: { type: 'boolean', default: false },
+          externalApp: { type: 'string' },
+          externalUserEmail: { type: 'string' },
+          externalUserId: { type: 'string' }
         }
       }
     }
@@ -182,7 +191,10 @@ module.exports = async function (fastify, opts) {
       userId = 'anonymous',
       organizationId,
       expiresIn = 86400,
-      oneTimeUse = false
+      oneTimeUse = false,
+      externalApp,
+      externalUserEmail,
+      externalUserId
     } = request.query
     
     // Get server URL from query, config, or request
@@ -210,13 +222,16 @@ module.exports = async function (fastify, opts) {
       }
     }
     
-    // Generate signed token
+    // Generate signed token (include externalApp/externalUser* for dashboard "Uploaded via X")
     const tokenData = generateUploadToken(serverUrl, {
       userId,
       organizationId,
       draftId,
       expiresIn: parseInt(expiresIn, 10),
-      oneTimeUse: oneTimeUse === 'true' || oneTimeUse === true
+      oneTimeUse: oneTimeUse === 'true' || oneTimeUse === true,
+      externalApp: externalApp || null,
+      externalUserEmail: externalUserEmail || null,
+      externalUserId: externalUserId || null
     })
     
     // Build secure deeplink URL
@@ -244,6 +259,9 @@ module.exports = async function (fastify, opts) {
       userId,
       organizationId: organizationId || null,
       oneTimeUse: oneTimeUse === 'true' || oneTimeUse === true,
+      externalApp: externalApp || null,
+      externalUserEmail: externalUserEmail || null,
+      externalUserId: externalUserId || null,
       // QR code data (can be used with any QR code library)
       qrData: deeplinkUrl
     }

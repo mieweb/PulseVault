@@ -188,7 +188,7 @@ module.exports = async function (fastify, opts) {
     // Compute checksum
     const checksum = await MetadataWriter.computeFileChecksum(originalPath)
 
-    // Create metadata
+    // Create metadata (externalApp/externalUser* from token for "Uploaded via X" on dashboard)
     const videoMetadata = {
       videoId,
       filename,
@@ -201,6 +201,9 @@ module.exports = async function (fastify, opts) {
       // Security metadata
       authenticated: !!tokenPayload,
       tokenId: tokenPayload?.tokenId || null,
+      ...(tokenPayload?.externalApp != null && { externalApp: tokenPayload.externalApp }),
+      ...(tokenPayload?.externalUserEmail != null && { externalUserEmail: tokenPayload.externalUserEmail }),
+      ...(tokenPayload?.externalUserId != null && { externalUserId: tokenPayload.externalUserId }),
       ...metadata
     }
 
