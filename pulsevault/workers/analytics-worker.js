@@ -28,6 +28,7 @@ class AnalyticsWorker {
    */
   async start() {
     console.log('[analytics-worker] starting...')
+    console.log('[analytics-worker] listening on Redis list: queue:analytics')
 
     while (this.running) {
       try {
@@ -35,9 +36,11 @@ class AnalyticsWorker {
         const result = await this.redis.brpop('queue:analytics', 5)
 
         if (!result) {
+          console.log('[analytics-worker] no job in queue (timeout)')
           continue
         }
 
+        console.log('[analytics-worker] dequeued raw payload:', result[1])
         const event = JSON.parse(result[1])
 
         // Insert raw event
@@ -49,6 +52,7 @@ class AnalyticsWorker {
             ts:      new Date(event.ts)
           }
         })
+        console.log('[analytics-worker] inserted videoEvent row')
 
         // Upsert aggregate metric
         await this.prisma.videoMetric.upsert({
@@ -56,6 +60,7 @@ class AnalyticsWorker {
           update: { watched50Count: { increment: 1 } },
           create: { videoId: event.videoId, watched50Count: 1 }
         })
+        console.log('[analytics-worker] upserted videoMetric row')
 
         console.log(`[analytics-worker] processed ${event.event} for video ${event.videoId}`)
       } catch (err) {

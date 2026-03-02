@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { auth } from "../auth";
 import { getSession } from "../get-session";
 import { forbidden, unauthorized } from "next/navigation";
+import prisma from "../prisma";
 
 /**
  * Helper function to check if the current user is an admin
@@ -184,22 +185,14 @@ export const isAdmin = async (): Promise<boolean> => {
 };
 
 /**
- * Fetch top videos by 50% watch rate from backend (Admin only)
+ * Fetch top videos by 50% watch rate directly from the database (Admin only)
  */
 export const getTopVideos = async (): Promise<{ videoId: string; watched50Count: number }[]> => {
   await requireAdmin();
 
-  const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
-  const hmacSecret = process.env.HMAC_SECRET || "change-me-in-production";
-
-  const res = await fetch(`${backendUrl}/admin/analytics/top`, {
-    headers: { "x-admin-secret": hmacSecret },
-    cache: "no-store",
+  return prisma.videoMetric.findMany({
+    orderBy: { watched50Count: "desc" },
+    take: 20,
+    select: { videoId: true, watched50Count: true },
   });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch top videos: ${res.status}`);
-  }
-
-  return res.json();
 };

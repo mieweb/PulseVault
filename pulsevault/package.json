@@ -10,6 +10,8 @@
     "test": "node --test test/**/*.test.js",
     "start": "fastify start -l info app.js",
     "dev": "fastify start -w -l info -P app.js",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
     "worker": "node workers/transcode-worker.js",
     "analytics-worker": "node workers/analytics-worker.js"
   },
@@ -44,5 +46,8 @@
     "qrcode": "^1.5.4",
     "redis": "^5.8.3",
     "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.2"
   }
 }

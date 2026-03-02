@@ -42,18 +42,20 @@ module.exports = async function (fastify, opts) {
   }, async (request, reply) => {
     const { videoId, event, ts, userId } = request.body
 
+    request.log.info({ videoId, event, userId, ts }, '[analytics] received event')
+
     if (event !== 'watched_50_percent') {
+      request.log.warn({ videoId, event, userId }, '[analytics] unsupported event type')
       return reply.code(400).send({ error: 'Unsupported event type' })
     }
 
-    const dedupeKey = `dedupe:video:${videoId}:user:${userId}:watched50`
-    const result = await fastify.redis.set(dedupeKey, 1, 'EX', 86400, 'NX')
+    // Always queue analytics events (no dedupe), so repeated watches are counted.
+    const queueLengthAfterPush = await fastify.redis.lpush('queue:analytics', JSON.stringify(request.body))
 
-    if (result === null) {
-      return reply.code(200).send({ status: 'duplicate' })
-    }
-
-    await fastify.redis.lpush('queue:analytics', JSON.stringify(request.body))
+    request.log.info(
+      { videoId, userId, queue: 'queue:analytics', queueLengthAfterPush },
+      '[analytics] event queued successfully'
+    )
 
     return reply.code(200).send({ status: 'queued' })
   })
