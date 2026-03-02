@@ -35,10 +35,25 @@ docker-compose up -d
 
 # 3. Test
 curl http://localhost/
+curl http://localhost:8080/docs/   # Pulse Cam developer docs (Docusaurus)
 ./test-full-infrastructure.sh
 ```
 
-**✅ Done!** Full stack running (Nginx, Prometheus, Grafana, Loki, etc.)
+**✅ Done!** Full stack running (Nginx, Prometheus, Grafana, Loki, **docs at /docs/**).
+
+**Docs:** After `docker-compose up -d`, the Pulse Cam developer documentation is available at **http://localhost:8080/docs/** (or https://your-domain/docs/ in production). The `pulsevault-docs` service builds the Docusaurus site and serves it; Nginx proxies `/docs/` to that container.
+
+### Running the docs (without Docker)
+
+To run or edit the docs locally:
+
+```bash
+cd docs
+npm install
+npm run start   # Dev server at http://localhost:3000 (use baseUrl /docs/ when testing behind Nginx)
+# Or build and serve:
+npm run build && npx serve build -s -l 3001
+```
 
 ---
 
@@ -164,6 +179,7 @@ For detailed API documentation, see [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE
 - [ ] `./scripts/setup.sh` completed
 - [ ] `docker-compose up -d` successful
 - [ ] All services healthy
+- [ ] Docs at http://localhost:8080/docs/ (optional; `pulsevault-docs` service)
 
 ### Production
 - [ ] Server prepared (Docker, storage)

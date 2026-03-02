@@ -83,6 +83,17 @@ services:
       retries: 3
       start_period: 40s
 
+  # Pulse Cam developer docs (Docusaurus) - served at /docs/ via nginx
+  pulsevault-docs:
+    build:
+      context: ./docs
+      dockerfile: Dockerfile
+    container_name: pulsevault-docs
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+    # Port not exposed - nginx proxies /docs/ to this service
+
   # Nginx reverse proxy
   # Note: Uses port 8080 for unprivileged LXC containers (Proxmox handles SSL termination)
   nginx:
@@ -99,6 +110,7 @@ services:
     depends_on:
       - pulsevault
       - pulsevault-frontend
+      - pulsevault-docs
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:80/health"]
       interval: 30s
