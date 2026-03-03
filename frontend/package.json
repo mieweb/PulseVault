@@ -11,7 +11,7 @@
   "dependencies": {
     "@arcjet/inspect": "^1.0.0-beta.15",
     "@arcjet/ip": "^1.0.0-beta.15",
-    "@arcjet/next": "^1.0.0-beta.15",
+    "@arcjet/next": "^1.1.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^6.19.1",
     "@radix-ui/react-avatar": "^1.1.11",
