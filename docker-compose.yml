@@ -1,21 +1,4 @@
 services:
-  # PostgreSQL database for frontend auth/session data
-  postgres:
-    image: postgres:16-alpine
-    container_name: pulsevault-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=pulsevault
-      - POSTGRES_USER=pulsevault
-      - POSTGRES_PASSWORD=pulsevault
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pulsevault -d pulsevault"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Redis for job queue and caching
   redis:
     image: redis:7-alpine
@@ -83,22 +66,6 @@ services:
     # To scale workers, use: docker-compose up -d --scale transcode-worker=2
     # Note: container_name removed to allow scaling
 
-  # Analytics worker
-  analytics-worker:
-    build:
-      context: ./pulsevault
-      dockerfile: Dockerfile.analytics-worker
-    restart: unless-stopped
-    environment:
-      - MEDIA_ROOT=/media
-      - VIDEO_DIR=/media/videos
-      - AUDIT_DIR=/media/audit
-    volumes:
-      - media-storage:/media
-    depends_on:
-      redis:
-        condition: service_healthy
-
   # PulseVault frontend
   pulsevault-frontend:
     build:
@@ -106,13 +73,8 @@ services:
       dockerfile: Dockerfile
     container_name: pulsevault-frontend
     restart: unless-stopped
-    env_file:
-      - ./frontend/.env
     environment:
       - NODE_ENV=production
-    depends_on:
-      postgres:
-        condition: service_healthy
     # Ports not exposed - accessed via nginx only (internal Docker network)
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
@@ -230,9 +192,6 @@ volumes:
 
   # Nginx cache (optional - improves performance)
   nginx-cache:
-
-  # PostgreSQL data
-  postgres-data:
 
 networks:
   default:
