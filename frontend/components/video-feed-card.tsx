@@ -18,6 +18,10 @@ type VideoFeedCardProps = {
       name: string;
       image?: string | null;
     } | null;
+    /** Set when uploaded via external app (e.g. Time Harbour); shown as "Uploaded via X" */
+    externalApp?: string | null;
+    externalUserEmail?: string | null;
+    externalUserId?: string | null;
   };
 };
 
@@ -26,6 +30,12 @@ function formatDuration(seconds: number | null | undefined): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function formatExternalAppName(app: string): string {
+  const lower = app.toLowerCase();
+  if (lower === "timeharbour" || lower === "timeharbor") return "Time Harbour";
+  return app.charAt(0).toUpperCase() + app.slice(1).toLowerCase();
 }
 
 export function VideoFeedCard({ video }: VideoFeedCardProps) {
@@ -73,6 +83,12 @@ export function VideoFeedCard({ video }: VideoFeedCardProps) {
                 <p className="font-semibold text-sm text-card-foreground truncate mb-1">
                   {video.user.name}
                 </p>
+                {video.externalApp && (
+                  <p className="text-xs text-muted-foreground mb-0.5">
+                    Uploaded via {formatExternalAppName(video.externalApp)}
+                    {video.externalUserEmail ? ` · ${video.externalUserEmail}` : ""}
+                  </p>
+                )}
                 <Link href={`/watch/${video.videoId}`}>
                   <h3 className="font-semibold text-sm text-card-foreground hover:text-primary transition-colors line-clamp-2">
                     {displayTitle}
@@ -82,6 +98,12 @@ export function VideoFeedCard({ video }: VideoFeedCardProps) {
             </>
           ) : (
             <div className="flex-1">
+              {video.externalApp && (
+                <p className="text-xs text-muted-foreground mb-1">
+                  Uploaded via {formatExternalAppName(video.externalApp)}
+                  {video.externalUserEmail ? ` · ${video.externalUserEmail}` : ""}
+                </p>
+              )}
               <Link href={`/watch/${video.videoId}`}>
                 <h3 className="font-semibold text-sm text-card-foreground hover:text-primary transition-colors line-clamp-2">
                   {displayTitle}
