@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY lib ./lib
+COPY workers ./workers
+
+# Copy .env file if it exists (for environment variables)
+COPY .env* ./
+
+# Create media directories
+RUN mkdir -p /media/uploads /media/videos /media/audit
+
+# Run the analytics worker
+CMD ["node", "workers/analytics-worker.js"]

@@ -33,7 +33,7 @@ export default function DashboardClient({ session, initialVideos, initialPaginat
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-0 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
         <div className="overflow-y-auto">
-          <VideoFeed initialVideos={initialVideos} initialPagination={initialPagination} />
+          <VideoFeed initialVideos={initialVideos} initialPagination={initialPagination} userId={session.user.id} />
         </div>
       </div>
     </div>

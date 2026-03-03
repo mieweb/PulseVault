@@ -2,17 +2,41 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
+import { getClientId } from "@/lib/getClientId";
 
 type VideoPlayerProps = {
   videoUrl: string | null;
   className?: string;
+  videoId: string;
+  userId?: string | null;
 };
 
-export function VideoPlayer({ videoUrl, className }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, className, videoId, userId }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const hlsRef = useRef<any>(null);
+  const hasFired50 = useRef<boolean>(false);
+
+  const handleTimeUpdate = () => {
+    if (hasFired50.current) return
+    const video = videoRef.current
+    if (!video || !video.duration || isNaN(video.duration)) return
+    if (video.currentTime / video.duration > 0.5) {
+      hasFired50.current = true
+      const clientId = getClientId(userId)
+      fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId,
+          event: 'watched_50_percent',
+          ts: Date.now(),
+          userId: clientId
+        })
+      }).catch(err => console.error('[analytics] failed:', err))
+    }
+  }
 
   useEffect(() => {
     if (!videoUrl || !videoRef.current) {
@@ -129,6 +153,7 @@ export function VideoPlayer({ videoUrl, className }: VideoPlayerProps) {
         className="w-full h-full max-h-full object-contain"
         autoPlay={false}
         playsInline
+        onTimeUpdate={handleTimeUpdate}
       />
     </div>
   );
