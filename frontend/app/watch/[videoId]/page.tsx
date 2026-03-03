@@ -1,5 +1,4 @@
 import { getVideo } from "@/lib/actions/video-actions";
-import { getSession } from "@/lib/get-session";
 import { VideoPlayer } from "@/components/video-player";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -19,8 +18,7 @@ function formatDuration(seconds: number | null | undefined): string {
 
 export default async function WatchPage({ params }: WatchPageProps) {
   const { videoId } = await params;
-  const [video, session] = await Promise.all([getVideo(videoId), getSession()]);
-  const userId = session?.user?.id ?? null;
+  const video = await getVideo(videoId);
 
   if (!video) {
     return (
@@ -66,9 +64,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
                 video.playbackUrl ? (
                   <div className="w-full h-[35vh] sm:h-[45vh] md:h-[55vh] lg:h-[65vh] flex items-center justify-center">
                     <VideoPlayer 
-                      videoUrl={video.playbackUrl}
-                      videoId={videoId}
-                      userId={userId}
+                      videoUrl={video.playbackUrl} 
                       className="w-full h-full" 
                     />
                   </div>

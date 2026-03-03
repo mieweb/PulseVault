@@ -1,20 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Session } from "@/lib/auth";
-import { Shield, Users, Settings, Activity, TrendingUp } from "lucide-react";
-import { getTopVideos } from "@/lib/actions/admin-actions";
+import { Shield, Users, Settings, Activity } from "lucide-react";
 
 export default function AdminClient({ session }: { session: Session }) {
-  const [topVideos, setTopVideos] = useState<{ videoId: string; watched50Count: number }[]>([])
-
-  useEffect(() => {
-    getTopVideos()
-      .then((data) => setTopVideos(data))
-      .catch((err) => console.error('[analytics] failed to fetch top videos:', err))
-  }, [])
-
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -110,31 +99,17 @@ export default function AdminClient({ session }: { session: Session }) {
                   Feature coming soon
                 </p>
               </div>
-              <Link href="/analytics" className="block">
-                <div className="bg-muted/50 border border-border rounded-lg p-4 hover:bg-muted transition-colors cursor-pointer">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="h-5 w-5 text-card-foreground" />
-                    <h3 className="text-lg font-semibold text-card-foreground">
-                      Top Videos by 50% Watch Rate
-                    </h3>
-                  </div>
-                  <p className="text-muted-foreground text-sm mb-3">
-                    Videos ranked by how many unique users watched past the halfway point.
-                  </p>
-                  {topVideos.length > 0 ? (
-                    <ul className="space-y-1">
-                      {topVideos.slice(0, 3).map((v) => (
-                        <li key={v.videoId} className="flex justify-between text-xs text-muted-foreground">
-                          <span className="truncate max-w-[160px]">{v.videoId}</span>
-                          <span className="font-medium text-card-foreground ml-2">{v.watched50Count}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">No data yet</p>
-                  )}
-                </div>
-              </Link>
+              <div className="bg-muted/50 border border-border rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-card-foreground mb-2">
+                  System Analytics
+                </h3>
+                <p className="text-muted-foreground text-sm mb-3">
+                  View system usage and performance metrics
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  Feature coming soon
+                </p>
+              </div>
               <div className="bg-muted/50 border border-border rounded-lg p-4">
                 <h3 className="text-lg font-semibold text-card-foreground mb-2">
                   Export Data

@@ -27,10 +27,9 @@ type VideoFeedProps = {
     total: number;
     totalPages: number;
   };
-  userId?: string | null;
 };
 
-export function VideoFeed({ initialVideos, initialPagination, userId }: VideoFeedProps) {
+export function VideoFeed({ initialVideos, initialPagination }: VideoFeedProps) {
   const [videos, setVideos] = useState(initialVideos);
   const [pagination, setPagination] = useState(initialPagination);
   const [loading, setLoading] = useState(false);
@@ -95,7 +94,7 @@ export function VideoFeed({ initialVideos, initialPagination, userId }: VideoFee
       {/* Instagram-style vertical feed */}
       <div className="max-w-2xl mx-auto space-y-6">
         {videos.map((video) => (
-          <VideoFeedCard key={video.videoId} video={video} userId={userId} />
+          <VideoFeedCard key={video.videoId} video={video} />
         ))}
       </div>
 

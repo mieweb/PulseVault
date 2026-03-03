@@ -172,10 +172,9 @@ export async function getAllVideos(page = 1, limit = 20) {
               const playbackSignedUrl = signData.url;
               
               if (playbackSignedUrl) {
-                const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL ||
-                                 process.env.BACKEND_URL ||
-                                 process.env.BETTER_AUTH_URL?.replace(/\/$/, '') ||
-                                 "http://localhost:3000";
+                const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                                 process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
+                                 "http://localhost:8080";
         
                 playbackUrl = playbackSignedUrl.startsWith('http') 
                   ? playbackSignedUrl 
@@ -300,10 +299,9 @@ export async function getVideo(videoId: string) {
             console.error("Playback URL signing returned empty URL:", signData);
           } else {
             // Convert relative URL to absolute URL
-            const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL ||
-                             process.env.BACKEND_URL ||
-                             process.env.BETTER_AUTH_URL?.replace(/\/$/, '') ||
-                             "http://localhost:3000";
+            const publicUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
+                             process.env.BETTER_AUTH_URL?.replace(/\/$/, '') || 
+                             "http://localhost:8080";
     
             playbackUrl = playbackSignedUrl.startsWith('http') 
               ? playbackSignedUrl 
