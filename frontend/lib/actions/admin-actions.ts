@@ -4,7 +4,6 @@ import { headers } from "next/headers";
 import { auth } from "../auth";
 import { getSession } from "../get-session";
 import { forbidden, unauthorized } from "next/navigation";
-import prisma from "../prisma";
 
 /**
  * Helper function to check if the current user is an admin
@@ -182,17 +181,4 @@ export const isAdmin = async (): Promise<boolean> => {
   } catch {
     return false;
   }
-};
-
-/**
- * Fetch top videos by 50% watch rate directly from the database (Admin only)
- */
-export const getTopVideos = async (): Promise<{ videoId: string; watched50Count: number }[]> => {
-  await requireAdmin();
-
-  return prisma.videoMetric.findMany({
-    orderBy: { watched50Count: "desc" },
-    take: 20,
-    select: { videoId: true, watched50Count: true },
-  });
 };
