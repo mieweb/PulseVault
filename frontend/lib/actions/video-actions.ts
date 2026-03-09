@@ -21,9 +21,10 @@ export async function generateUploadQRCode() {
   // Get backend URL from environment or use default
   const backendUrl = process.env.BACKEND_URL || "http://pulsevault:3000";
   const serverUrl = process.env.BETTER_AUTH_URL || "http://localhost:8080";
+  const duration = 180;
 
   // Call backend to generate QR code with draftId
-  const response = await fetch(`${backendUrl}/qr/deeplink?userId=${session.user.id}&draftId=${draftId}&server=${encodeURIComponent(serverUrl)}`, {
+  const response = await fetch(`${backendUrl}/qr/deeplink?userId=${session.user.id}&draftId=${draftId}&server=${encodeURIComponent(serverUrl)}&duration=${duration}`, {
     method: "GET",
   });
 

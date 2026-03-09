@@ -180,7 +180,8 @@ module.exports = async function (fastify, opts) {
           oneTimeUse: { type: 'boolean', default: false },
           externalApp: { type: 'string' },
           externalUserEmail: { type: 'string' },
-          externalUserId: { type: 'string' }
+          externalUserId: { type: 'string' },
+          duration: { type: 'number', default: 180 }
         }
       }
     }
@@ -194,7 +195,8 @@ module.exports = async function (fastify, opts) {
       oneTimeUse = false,
       externalApp,
       externalUserEmail,
-      externalUserId
+      externalUserId,
+      duration = 180
     } = request.query
     
     // Get server URL from query, config, or request
@@ -245,6 +247,7 @@ module.exports = async function (fastify, opts) {
     if (draftId) {
       params.set('draftId', draftId)
     }
+    params.set('duration', duration)
     
     const deeplinkUrl = `pulsecam://?${params.toString()}`
     
@@ -262,6 +265,7 @@ module.exports = async function (fastify, opts) {
       externalApp: externalApp || null,
       externalUserEmail: externalUserEmail || null,
       externalUserId: externalUserId || null,
+      duration,
       // QR code data (can be used with any QR code library)
       qrData: deeplinkUrl
     }
