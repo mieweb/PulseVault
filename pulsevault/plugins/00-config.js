@@ -33,6 +33,16 @@ module.exports = fp(async function (fastify, opts) {
     tokenExpirySeconds: parseInt(process.env.TOKEN_EXPIRY_SECONDS || '300', 10),
     requireUploadToken: process.env.REQUIRE_UPLOAD_TOKEN !== 'false', // Default: true (require token)
 
+    // Report issue
+    reportIssue: {
+      uploadDir: process.env.REPORT_ISSUE_UPLOAD_DIR || '/mnt/media/report-issues',
+      maxZipBytes: parseInt(process.env.REPORT_ISSUE_MAX_ZIP_BYTES || '26214400', 10),
+      githubToken: process.env.GITHUB_TOKEN || '',
+      githubRepoOwner: process.env.GITHUB_REPO_OWNER || '',
+      githubRepoName: process.env.GITHUB_REPO_NAME || '',
+      githubTimeoutMs: parseInt(process.env.REPORT_ISSUE_TIMEOUT_MS || '10000', 10)
+    },
+
     // Redis
     // Default to Docker container name 'pulsevault-redis' (works in Docker network)
     // Override with REDIS_HOST env var for local development (use 'localhost')
@@ -77,8 +87,12 @@ module.exports = fp(async function (fastify, opts) {
     fastify.log.warn('⚠️  Using default HMAC_SECRET in production! Please set a secure secret.')
   }
 
+  if (!config.reportIssue.githubToken || !config.reportIssue.githubRepoOwner || !config.reportIssue.githubRepoName) {
+    fastify.log.warn('Report issue GitHub integration is not fully configured (missing GITHUB_TOKEN, GITHUB_REPO_OWNER, or GITHUB_REPO_NAME).')
+  }
+
   // Ensure storage directories exist
-  const dirs = [config.mediaRoot, config.uploadDir, config.videoDir, config.auditDir]
+  const dirs = [config.mediaRoot, config.uploadDir, config.videoDir, config.auditDir, config.reportIssue.uploadDir]
   for (const dir of dirs) {
     try {
       if (!fs.existsSync(dir)) {
@@ -94,9 +108,10 @@ module.exports = fp(async function (fastify, opts) {
         config.uploadDir = path.join(tempBase, 'uploads')
         config.videoDir = path.join(tempBase, 'videos')
         config.auditDir = path.join(tempBase, 'audit')
+        config.reportIssue.uploadDir = path.join(tempBase, 'report-issues')
         
         // Create temp directories
-        for (const tempDir of [config.mediaRoot, config.uploadDir, config.videoDir, config.auditDir]) {
+        for (const tempDir of [config.mediaRoot, config.uploadDir, config.videoDir, config.auditDir, config.reportIssue.uploadDir]) {
           if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir, { recursive: true, mode: 0o750 })
           }
