@@ -30,8 +30,25 @@ fi
 
 echo "✅ Prerequisites OK"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Set up frontend .env
+cd "$SCRIPT_DIR/../frontend"
+if [ ! -f .env ]; then
+    echo ""
+    echo "Creating frontend .env file..."
+    if [ -f .example.env ]; then
+        cp .example.env .env
+        echo "✅ frontend/.env file created from .example.env"
+        echo "   ⚠️  Remember to fill in real values in frontend/.env before deploying!"
+    else
+        echo "❌ frontend/.example.env not found!"
+        exit 1
+    fi
+fi
+
 # Navigate to pulsevault directory
-cd "$(dirname "$0")/../pulsevault"
+cd "$SCRIPT_DIR/../pulsevault"
 
 # Install dependencies
 echo ""
@@ -41,7 +58,7 @@ npm install
 # Copy .env if it doesn't exist
 if [ ! -f .env ]; then
     echo ""
-    echo "Creating .env file..."
+    echo "Creating pulsevault .env file..."
     if [ -f .env.example ]; then
         cp .env.example .env
         echo "✅ .env file created from .env.example"
