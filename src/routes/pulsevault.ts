@@ -11,9 +11,9 @@ import {
   pulseVaultTusContext,
   type PulseVaultOnUploadComplete,
 } from "../lib/pulsevaultTus.js";
-import { pulseVaultError, replyWithZodError } from "../lib/zodReply.js";
+import { pulseVaultError } from "../lib/errors.js";
+import { isUuid } from "../lib/uuid.js";
 import type { PulseVaultStorage } from "../storage/types.js";
-import { z } from "zod";
 
 // Internal augmentation — mirrored in the opt-in `./augment.ts` re-export so
 // consumers can `import "@mieweb/pulsevault/augment"` and get the
@@ -46,12 +46,6 @@ export type PulseVaultRoutesOptions = {
   onUploadComplete?: PulseVaultOnUploadComplete;
 } & FastifyPluginOptions;
 
-const videoidParamsSchema = z.object({
-  videoid: z.uuid(),
-});
-
-const videoidSchema = z.uuid();
-
 /**
  * Pull `videoid` out of a raw `Upload-Metadata` header. Format is a
  * comma-separated list of `<key> <base64-value>` pairs (tus v1 creation
@@ -70,7 +64,7 @@ function parseVideoidFromMetadata(header: string): string | undefined {
     if (!value) return undefined;
     try {
       const decoded = Buffer.from(value, "base64").toString("utf8");
-      return videoidSchema.safeParse(decoded).success ? decoded : undefined;
+      return isUuid(decoded) ? decoded : undefined;
     } catch {
       return undefined;
     }
@@ -93,7 +87,7 @@ function videoidFromTusUrl(url: string): string | undefined {
     return undefined;
   }
   const first = decoded.split("/", 1)[0];
-  return first && videoidSchema.safeParse(first).success ? first : undefined;
+  return isUuid(first) ? first : undefined;
 }
 
 function extractAuthzStatus(err: unknown): number {
@@ -212,12 +206,13 @@ const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
   fastify.all("/upload/*", tusHandler);
 
   fastify.get("/:videoid", async (request, reply) => {
-    const parsed = videoidParamsSchema.safeParse(request.params);
-    if (!parsed.success) {
-      return replyWithZodError(reply, parsed.error);
+    const videoid = (request.params as { videoid?: unknown })?.videoid;
+    if (!isUuid(videoid)) {
+      return reply
+        .code(400)
+        .send(pulseVaultError("`videoid` must be a valid UUID"));
     }
 
-    const videoid = parsed.data.videoid;
     request.pulseVault = { videoid };
 
     // Run authorize *before* resolve so consumers can reject without the

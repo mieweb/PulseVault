@@ -2,7 +2,7 @@ import { ArtiMount, type ArtiPod } from "@mieweb/artipod";
 import { FileStore } from "@tus/file-store";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
+import { isUuid } from "../lib/uuid.js";
 import { createPulseVaultPod } from "../pod/pulsevaultPod.js";
 import type {
   PulseVaultResolution,
@@ -22,8 +22,6 @@ export type LocalStorage = PulseVaultStorage & {
   readonly pod: ArtiPod;
   readonly workspaceRoot: string;
 };
-
-const videoidDirSchema = z.uuid();
 
 export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
   const workspaceRoot = path.resolve(opts.workspaceDir);
@@ -45,13 +43,12 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
       if (!entry.isDirectory()) {
         continue;
       }
-      const parsed = videoidDirSchema.safeParse(entry.name);
-      if (!parsed.success || pod.getMount(parsed.data)) {
+      if (!isUuid(entry.name) || pod.getMount(entry.name)) {
         continue;
       }
       const mount = new ArtiMount(
-        parsed.data,
-        path.join(workspaceRoot, parsed.data),
+        entry.name,
+        path.join(workspaceRoot, entry.name),
       );
       await mount.initialize();
       pod.addMount(mount);

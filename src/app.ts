@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
-import { z } from "zod";
 import pulseVaultRoutes, {
   type PulseVaultAuthorize,
   type PulseVaultAuthorizeContext,
@@ -96,74 +95,38 @@ export type PulseVaultPluginOptions = {
 
 const DEFAULT_DECORATOR_NAME = "pulseVault";
 const DEFAULT_ALLOWED_EXTENSIONS: readonly string[] = [".mp4"];
+const EXTENSION_REGEX = /^\.[^.\s/\\]+$/;
 
-const storageSchema = z.custom<PulseVaultStorage>(
-  (val) => {
-    if (!val || typeof val !== "object") {
-      return false;
-    }
-    const s = val as Partial<PulseVaultStorage>;
-    return (
-      typeof s.reserveUpload === "function" &&
-      typeof s.resolve === "function" &&
-      !!s.datastore
+function validateOptions(opts: PulseVaultPluginOptions): void {
+  if (opts.prefix !== "" && (!opts.prefix.startsWith("/") || opts.prefix.endsWith("/"))) {
+    throw new TypeError(
+      "`prefix` must be '' or start with '/' with no trailing slash (e.g. '/pulsevault')",
     );
-  },
-  { message: "storage must implement PulseVaultStorage" },
-);
-
-const cacheOptionsSchema = z
-  .object({
-    cacheControl: z.boolean().optional(),
-    maxAge: z.union([z.string().min(1), z.number().min(0)]).optional(),
-    immutable: z.boolean().optional(),
-  })
-  .strict();
-
-// Validate hooks at runtime without enforcing a specific call signature —
-// zod v4's `z.function()` produces a wrapped function we don't want. A simple
-// typeof check is enough; the TS types do the real enforcement for consumers.
-const authorizeSchema = z.custom<PulseVaultAuthorize>(
-  (v) => typeof v === "function",
-  { message: "`authorize` must be a function" },
-);
-const onUploadCompleteSchema = z.custom<PulseVaultOnUploadComplete>(
-  (v) => typeof v === "function",
-  { message: "`onUploadComplete` must be a function" },
-);
-
-const optionsSchema = z.object({
-  storage: storageSchema,
-  prefix: z
-    .string()
-    .refine((v) => v === "" || (v.startsWith("/") && !v.endsWith("/")), {
-      message:
-        "`prefix` must be '' or start with '/' with no trailing slash (e.g. '/pulsevault')",
-    }),
-  maxUploadSize: z.number().refine((v) => v > 0, {
-    message:
+  }
+  if (!(opts.maxUploadSize > 0)) {
+    throw new TypeError(
       "`maxUploadSize` must be a positive number (use Infinity for no cap)",
-  }),
-  decoratorName: z.string().min(1).optional(),
-  allowedExtensions: z
-    .array(
-      z.string().regex(/^\.[^.\s/\\]+$/, {
-        message:
-          "each extension must start with '.' and contain no nested dots, slashes, or whitespace (e.g. '.mp4')",
-      }),
-    )
-    .min(1)
-    .optional(),
-  cache: cacheOptionsSchema.optional(),
-  authorize: authorizeSchema.optional(),
-  onUploadComplete: onUploadCompleteSchema.optional(),
-});
+    );
+  }
+  if (opts.allowedExtensions) {
+    if (opts.allowedExtensions.length === 0) {
+      throw new TypeError("`allowedExtensions` must not be empty");
+    }
+    for (const ext of opts.allowedExtensions) {
+      if (!EXTENSION_REGEX.test(ext)) {
+        throw new TypeError(
+          `\`allowedExtensions\` entry ${JSON.stringify(ext)} must start with '.' and contain no nested dots, slashes, or whitespace (e.g. '.mp4')`,
+        );
+      }
+    }
+  }
+}
 
 const app: FastifyPluginAsync<PulseVaultPluginOptions> = async (
   fastify,
-  rawOpts,
+  opts,
 ) => {
-  const opts = optionsSchema.parse(rawOpts);
+  validateOptions(opts);
 
   // Register the shutdown hook *before* awaiting initialize() so any partial
   // state the adapter allocates mid-init still gets cleaned up if Fastify

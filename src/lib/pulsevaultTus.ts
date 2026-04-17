@@ -2,7 +2,7 @@ import { Server } from "@tus/server";
 import type { FastifyRequest } from "fastify";
 import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
-import { z } from "zod";
+import { isUuid } from "./uuid.js";
 import type { PulseVaultStorage } from "../storage/types.js";
 
 /**
@@ -41,8 +41,6 @@ export type PulsevaultTusOptions = {
   onUploadComplete?: PulseVaultOnUploadComplete;
 };
 
-const videoidMetaSchema = z.uuid();
-
 /**
  * Shape `@tus/server` recognizes for sending an error response. We tag both
  * `statusCode` and `status_code` so throws originating from either Fastify
@@ -60,7 +58,7 @@ export function tusError(status: number, body: string): Error {
 /** Parse the first path segment of a tus upload id as the videoid. */
 function videoidFromUploadId(id: string): string | undefined {
   const first = id.split("/", 1)[0];
-  return first && videoidMetaSchema.safeParse(first).success ? first : undefined;
+  return isUuid(first) ? first : undefined;
 }
 
 export function createPulsevaultTusServer(options: PulsevaultTusOptions) {
@@ -75,8 +73,7 @@ export function createPulsevaultTusServer(options: PulsevaultTusOptions) {
       const videoid = metadata?.videoid ?? "";
       const filename = (metadata?.filename ?? "").trim();
 
-      const idCheck = videoidMetaSchema.safeParse(videoid);
-      if (!idCheck.success) {
+      if (!isUuid(videoid)) {
         throw tusError(
           400,
           "Upload-Metadata must include a valid `videoid` (UUID).\n",
