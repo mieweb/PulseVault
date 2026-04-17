@@ -3,6 +3,7 @@ import type {
   FastifyPluginOptions,
   FastifyReply,
   FastifyRequest,
+  FastifySchema,
 } from "fastify";
 import send from "@fastify/send";
 import type { PulseVaultCacheOptions } from "../app.js";
@@ -101,6 +102,73 @@ function extractAuthzMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
   return "Forbidden";
 }
+
+// Local extension of FastifySchema that allows the OpenAPI-flavored fields
+// (`tags`, `summary`, `description`) without pulling `@fastify/swagger` into
+// the plugin's type surface. Consumers that register `@fastify/swagger` get
+// the real module augmentation and these become native.
+type OpenApiRouteSchema = FastifySchema & {
+  tags?: string[];
+  summary?: string;
+  description?: string;
+};
+
+const pulseVaultErrorResponse = {
+  type: "object",
+  properties: {
+    ok: { type: "boolean" },
+    error: { type: "string" },
+  },
+  required: ["ok", "error"],
+};
+
+const tusRouteSchema: OpenApiRouteSchema = {
+  tags: ["pulsevault"],
+  summary: "TUS resumable upload endpoint",
+  description:
+    "TUS v1 resumable upload protocol.\n\n" +
+    "- `POST` creates a new upload. The `Upload-Metadata` header must include a base64-encoded `videoid` pair.\n" +
+    "- `PATCH` appends a chunk at the offset given by `Upload-Offset`, with `Content-Type: application/offset+octet-stream`.\n" +
+    "- `HEAD` returns the current offset for a resumable upload.\n" +
+    "- `DELETE` cancels an in-flight upload.\n\n" +
+    "See https://tus.io/protocols/resumable-upload for the full protocol.",
+  response: {
+    400: { description: "Invalid request.", ...pulseVaultErrorResponse },
+    403: {
+      description: "Authorize hook rejected the request.",
+      ...pulseVaultErrorResponse,
+    },
+  },
+};
+
+const videoGetSchema: OpenApiRouteSchema = {
+  tags: ["pulsevault"],
+  summary: "Serve a previously uploaded video",
+  description:
+    "Resolves the `videoid` through the configured storage adapter and either streams the bytes or redirects (for CDN-backed adapters). Runs the `authorize` hook before resolve.",
+  params: {
+    type: "object",
+    properties: {
+      videoid: {
+        type: "string",
+        format: "uuid",
+        description: "UUID returned from the reserve/TUS-create flow.",
+      },
+    },
+    required: ["videoid"],
+  },
+  response: {
+    400: {
+      description: "`videoid` is not a valid UUID.",
+      ...pulseVaultErrorResponse,
+    },
+    403: {
+      description: "Authorize hook rejected the request.",
+      ...pulseVaultErrorResponse,
+    },
+    404: { description: "Video not found.", ...pulseVaultErrorResponse },
+  },
+};
 
 const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
   fastify,
@@ -202,10 +270,21 @@ const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
     }
   };
 
-  fastify.all("/upload", tusHandler);
-  fastify.all("/upload/*", tusHandler);
+  const tusMethods = ["POST", "PATCH", "HEAD", "DELETE", "OPTIONS"] as const;
+  fastify.route({
+    method: [...tusMethods],
+    url: "/upload",
+    schema: tusRouteSchema,
+    handler: tusHandler,
+  });
+  fastify.route({
+    method: [...tusMethods],
+    url: "/upload/*",
+    schema: tusRouteSchema,
+    handler: tusHandler,
+  });
 
-  fastify.get("/:videoid", async (request, reply) => {
+  fastify.get("/:videoid", { schema: videoGetSchema }, async (request, reply) => {
     const videoid = (request.params as { videoid?: unknown })?.videoid;
     if (!isUuid(videoid)) {
       return reply
