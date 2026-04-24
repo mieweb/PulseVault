@@ -1,141 +1,248 @@
-import { ArtiMount, type ArtiPod } from "@mieweb/artipod";
 import { FileStore } from "@tus/file-store";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isUuid } from "../lib/uuid.js";
-import { createPulseVaultPod } from "../pod/pulsevaultPod.js";
 import type {
   PulseVaultResolution,
   PulseVaultStorage,
   ReserveUploadParams,
 } from "./types.js";
 
-export type LocalStorageOptions = {
-  /** Directory where per-video mounts are stored. Resolved against CWD if relative. */
-  workspaceDir: string;
-  /** Stable ArtiPod id. Must be unique across plugins in the same process. */
-  podId: string;
+/**
+ * Per-video metadata sidecar written at
+ * `<workspaceRoot>/<videoid>/.pulsevault.json`. Lets `resolve()` recover a
+ * video's extension and completion state without scanning the directory,
+ * and keeps the on-disk layout self-describing for downstream tools
+ * (ArtiPod pipelines, ffmpeg, rsync, etc.).
+ */
+type Sidecar = {
+  /** Sidecar schema version. Increment for breaking changes. */
+  version: 1;
+  /** Lowercase extension including the leading dot (e.g. `".mp4"`). */
+  ext: string;
+  /** Original filename from `Upload-Metadata.filename`. */
+  filename: string;
+  /**
+   * `"uploading"` between `reserveUpload` and `markReady`; `"ready"` once
+   * every post-upload validation has passed. The GET route only serves
+   * `"ready"` sidecars — partially-written files never leak out.
+   */
+  status: "uploading" | "ready";
 };
 
-/** Local-adapter-returned storage also exposes its pod for consumers that want it. */
+const SIDECAR_NAME = ".pulsevault.json";
+const SIDECAR_VERSION = 1 as const;
+
+type CachedMeta = { ext: string; ready: boolean };
+
+export type LocalStorageOptions = {
+  /** Directory where per-video subdirectories are stored. Resolved against CWD if relative. */
+  workspaceDir: string;
+};
+
+/**
+ * Local adapter storage. Layout contract (stable; downstream tools may rely
+ * on it):
+ *
+ * ```text
+ * <workspaceRoot>/<videoid>/
+ *   .pulsevault.json           # our sidecar: { version, ext, filename, status }
+ *   video/<videoid><ext>       # finalized upload bytes
+ *   video/<videoid><ext>.json  # @tus/file-store's offset/metadata sidecar
+ * ```
+ *
+ * `workspaceRoot` is exposed so consumers can layer post-processing (e.g.
+ * hydrate an ArtiPod with `video/`, `transcripts/`, `frames/` mounts) against
+ * the same on-disk tree from an `onUploadComplete` hook. `getLocalPath` is
+ * exposed for `validatePayload` helpers that need to sniff the bytes before
+ * the video is marked ready.
+ */
 export type LocalStorage = PulseVaultStorage & {
-  readonly pod: ArtiPod;
   readonly workspaceRoot: string;
+  /**
+   * Return the absolute path to the upload bytes for `videoid`, regardless
+   * of ready state. Falls back to reading the sidecar if the in-memory cache
+   * is cold (so it works even after a server restart mid-upload). Returns
+   * `null` if the videoid is unknown.
+   */
+  getLocalPath(videoid: string): Promise<string | null>;
 };
 
 export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
   const workspaceRoot = path.resolve(opts.workspaceDir);
-  const pod = createPulseVaultPod(workspaceRoot, opts.podId);
   const datastore = new FileStore({ directory: workspaceRoot });
-  // Serialize concurrent `reserveUpload` calls that share a videoid so we
-  // don't race two `ArtiMount` registrations against the same pod. TUS's
-  // default locker only guards *existing* upload ids, so the window between
-  // id minting and `addMount` is otherwise unprotected.
-  const reservations = new Map<string, Promise<void>>();
+  // Metadata cache keyed by videoid. Populated eagerly on reserve and lazily
+  // from the sidecar on cache-miss — so we never do a workspace-wide scan at
+  // boot and never do a per-request readdir on the GET hot path.
+  const metaCache = new Map<string, CachedMeta>();
+
+  const videoDir = (videoid: string): string =>
+    path.join(workspaceRoot, videoid);
+  const sidecarPath = (videoid: string): string =>
+    path.join(videoDir(videoid), SIDECAR_NAME);
+  const videoRelPath = (videoid: string, ext: string): string =>
+    `video/${videoid}${ext}`;
+
+  const writeSidecar = async (
+    videoid: string,
+    sidecar: Sidecar,
+  ): Promise<void> => {
+    // Atomic tmp + rename so a crash mid-write can never leave a truncated
+    // JSON blob that `loadMeta` would then treat as corrupt.
+    const finalPath = sidecarPath(videoid);
+    const tmpPath = `${finalPath}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(sidecar), "utf8");
+    await fs.rename(tmpPath, finalPath);
+  };
+
+  const readSidecar = async (videoid: string): Promise<Sidecar | null> => {
+    let raw: string;
+    try {
+      raw = await fs.readFile(sidecarPath(videoid), "utf8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+      throw err;
+    }
+    try {
+      const parsed = JSON.parse(raw) as Partial<Sidecar>;
+      if (typeof parsed.ext !== "string") return null;
+      if (typeof parsed.filename !== "string") return null;
+      // Older sidecars (pre-status) are treated as ready so an in-place
+      // upgrade doesn't hide finalized uploads. New uploads always write a
+      // `status` field explicitly.
+      const status: Sidecar["status"] =
+        parsed.status === "uploading" ? "uploading" : "ready";
+      return {
+        version: SIDECAR_VERSION,
+        ext: parsed.ext,
+        filename: parsed.filename,
+        status,
+      };
+    } catch {
+      // Malformed sidecar — treat as absent. `reserveUpload` will rewrite
+      // it on the next create.
+      return null;
+    }
+  };
+
+  const loadMeta = async (videoid: string): Promise<CachedMeta | null> => {
+    const cached = metaCache.get(videoid);
+    if (cached) return cached;
+    const sidecar = await readSidecar(videoid);
+    if (!sidecar) return null;
+    const meta: CachedMeta = {
+      ext: sidecar.ext,
+      ready: sidecar.status === "ready",
+    };
+    metaCache.set(videoid, meta);
+    return meta;
+  };
 
   const initialize = async (): Promise<void> => {
     await fs.mkdir(workspaceRoot, { recursive: true });
-    await pod.initialize();
-
-    // Rehydrate persisted mounts from disk.
-    const entries = await fs.readdir(workspaceRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-      if (!isUuid(entry.name) || pod.getMount(entry.name)) {
-        continue;
-      }
-      const mount = new ArtiMount(
-        entry.name,
-        path.join(workspaceRoot, entry.name),
-      );
-      await mount.initialize();
-      pod.addMount(mount);
-    }
   };
 
   const reserveUpload = async ({
     videoid,
+    filename,
     ext,
   }: ReserveUploadParams): Promise<string> => {
-    // Collision guard: if a finalized video already exists for this videoid,
-    // refuse the new upload rather than letting @tus/file-store silently
-    // rewrite the bytes (it would reset the metadata sidecar to offset 0 and
-    // overwrite the file chunk-by-chunk on subsequent PATCHes).
-    // Translates to HTTP 409 via @tus/server's error path.
-    const existing = await resolve(videoid);
-    if (existing) {
+    // Collision guard: if an upload (in-progress or ready) already exists
+    // for this videoid, refuse the new upload rather than letting
+    // @tus/file-store silently reset the metadata sidecar to offset 0 and
+    // overwrite the file chunk-by-chunk on subsequent PATCHes. Translates
+    // to HTTP 409 via @tus/server's error path.
+    const meta = await loadMeta(videoid);
+    if (meta) {
       throw Object.assign(
-        new Error(`videoid ${videoid} already has a completed upload`),
+        new Error(`videoid ${videoid} already has an upload`),
         { statusCode: 409, status_code: 409 },
       );
     }
 
-    const mountRoot = path.join(workspaceRoot, videoid);
-    await fs.mkdir(path.join(mountRoot, "video"), { recursive: true });
+    const dir = videoDir(videoid);
+    await fs.mkdir(path.join(dir, "video"), { recursive: true });
 
-    if (!pod.getMount(videoid)) {
-      let inflight = reservations.get(videoid);
-      if (!inflight) {
-        inflight = (async () => {
-          if (pod.getMount(videoid)) {
-            return;
-          }
-          // Writable by default; rehydration in `initialize` uses the same
-          // default so both code paths produce equivalent mounts.
-          const mount = new ArtiMount(videoid, mountRoot);
-          await mount.initialize();
-          pod.addMount(mount);
-        })();
-        reservations.set(videoid, inflight);
-        inflight.finally(() => {
-          if (reservations.get(videoid) === inflight) {
-            reservations.delete(videoid);
-          }
-        });
-      }
-      await inflight;
-    }
+    await writeSidecar(videoid, {
+      version: SIDECAR_VERSION,
+      ext,
+      filename,
+      status: "uploading",
+    });
 
-    return `${videoid}/video/${videoid}${ext}`;
+    metaCache.set(videoid, { ext, ready: false });
+    // @tus/file-store joins this onto its configured `directory`, so the
+    // actual file lands at `<workspaceRoot>/<videoid>/video/<videoid><ext>`.
+    return `${videoid}/${videoRelPath(videoid, ext)}`;
   };
 
   const resolve = async (
     videoid: string,
   ): Promise<PulseVaultResolution | null> => {
-    const mount = pod.getMount(videoid);
-    if (!mount) {
-      return null;
-    }
-    const mountRoot = mount.getRootPath();
-    const videoDir = path.join(mountRoot, "video");
-    const entries = await fs.readdir(videoDir).catch((err: unknown) => {
-      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
-        return [] as string[];
-      }
+    const meta = await loadMeta(videoid);
+    // Only serve ready uploads. In-progress uploads stay hidden — a client
+    // GETting mid-upload would otherwise receive a truncated file.
+    if (!meta || !meta.ready) return null;
+    const root = videoDir(videoid);
+    const relFile = videoRelPath(videoid, meta.ext);
+    try {
+      const stat = await fs.stat(path.join(root, relFile));
+      if (!stat.isFile()) return null;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
       throw err;
-    });
-    // `@tus/file-store` writes its metadata sidecar at `<id>.json` next to the
-    // file itself, so a naive `startsWith("${videoid}.")` match can return the
-    // JSON sidecar (leaking upload metadata). Require the full filename to be
-    // exactly `${videoid}<ext>` and reject the `.json` configstore artifact.
-    const match = entries.find((name) => {
-      const ext = path.extname(name).toLowerCase();
-      return ext !== ".json" && ext !== "" && name === `${videoid}${ext}`;
-    });
-    if (!match) {
-      return null;
     }
-    return { kind: "stream", root: mountRoot, filename: `video/${match}` };
+    return { kind: "stream", root, filename: relFile };
+  };
+
+  const markReady = async (videoid: string): Promise<void> => {
+    const sidecar = await readSidecar(videoid);
+    if (!sidecar) {
+      // No sidecar means no `reserveUpload` happened for this videoid — this
+      // is a contract violation by the caller, not a recoverable state.
+      throw new Error(
+        `markReady: no sidecar for videoid ${videoid} (was reserveUpload called?)`,
+      );
+    }
+    if (sidecar.status === "ready") {
+      // Idempotent: already ready is fine, keep the cache consistent.
+      metaCache.set(videoid, { ext: sidecar.ext, ready: true });
+      return;
+    }
+    await writeSidecar(videoid, { ...sidecar, status: "ready" });
+    metaCache.set(videoid, { ext: sidecar.ext, ready: true });
+  };
+
+  const remove = async (videoid: string): Promise<boolean> => {
+    const dir = videoDir(videoid);
+    // Drop from cache before the rm so a racing `resolve` that arrives after
+    // the rm but before the cache eviction can't hand back a stale path.
+    metaCache.delete(videoid);
+    try {
+      // Note: no `force: true` — we want ENOENT to surface so the caller
+      // (the DELETE route) can distinguish "removed something" from "nothing
+      // to remove" and return 204 vs 404 accordingly.
+      await fs.rm(dir, { recursive: true });
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return false;
+      throw err;
+    }
+  };
+
+  const getLocalPath = async (videoid: string): Promise<string | null> => {
+    const meta = await loadMeta(videoid);
+    if (!meta) return null;
+    return path.join(workspaceRoot, videoid, "video", `${videoid}${meta.ext}`);
   };
 
   return {
     datastore,
-    pod,
     workspaceRoot,
     initialize,
     reserveUpload,
     resolve,
+    markReady,
+    remove,
+    getLocalPath,
   };
 }

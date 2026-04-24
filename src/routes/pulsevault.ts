@@ -12,6 +12,7 @@ import {
   pulseVaultTusContext,
   type PulseVaultOnUploadComplete,
 } from "../lib/pulsevaultTus.js";
+import type { PulseVaultValidatePayload } from "../lib/magic.js";
 import { pulseVaultError } from "../lib/errors.js";
 import { isUuid } from "../lib/uuid.js";
 import type { PulseVaultStorage } from "../storage/types.js";
@@ -26,7 +27,11 @@ declare module "fastify" {
   }
 }
 
-export type PulseVaultAuthorizePhase = "create" | "patch" | "resolve";
+export type PulseVaultAuthorizePhase =
+  | "create"
+  | "patch"
+  | "resolve"
+  | "delete";
 
 export type PulseVaultAuthorizeContext = {
   phase: PulseVaultAuthorizePhase;
@@ -44,6 +49,7 @@ export type PulseVaultRoutesOptions = {
   allowedExtensions: readonly string[];
   cache?: PulseVaultCacheOptions;
   authorize?: PulseVaultAuthorize;
+  validatePayload?: PulseVaultValidatePayload;
   onUploadComplete?: PulseVaultOnUploadComplete;
 } & FastifyPluginOptions;
 
@@ -141,6 +147,39 @@ const tusRouteSchema: OpenApiRouteSchema = {
   },
 };
 
+const videoDeleteSchema: OpenApiRouteSchema = {
+  tags: ["pulsevault"],
+  summary: "Delete an uploaded video",
+  description:
+    "Deletes all storage for a videoid (bytes + sidecar metadata). Runs the `authorize` hook with `phase: \"delete\"` before the adapter's `remove` is called. Returns 204 on success, 404 if the videoid was unknown, 501 if the adapter does not implement `remove`.",
+  params: {
+    type: "object",
+    properties: {
+      videoid: {
+        type: "string",
+        format: "uuid",
+        description: "UUID of the upload to delete.",
+      },
+    },
+    required: ["videoid"],
+  },
+  response: {
+    400: {
+      description: "`videoid` is not a valid UUID.",
+      ...pulseVaultErrorResponse,
+    },
+    403: {
+      description: "Authorize hook rejected the request.",
+      ...pulseVaultErrorResponse,
+    },
+    404: { description: "Video not found.", ...pulseVaultErrorResponse },
+    501: {
+      description: "Storage adapter does not implement delete.",
+      ...pulseVaultErrorResponse,
+    },
+  },
+};
+
 const videoGetSchema: OpenApiRouteSchema = {
   tags: ["pulsevault"],
   summary: "Serve a previously uploaded video",
@@ -174,7 +213,15 @@ const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
   fastify,
   opts,
 ) => {
-  const { storage, maxUploadSize, allowedExtensions, cache, authorize, onUploadComplete } = opts;
+  const {
+    storage,
+    maxUploadSize,
+    allowedExtensions,
+    cache,
+    authorize,
+    validatePayload,
+    onUploadComplete,
+  } = opts;
   // `fastify.prefix` is `""` when the plugin is mounted at the root.
   const tusPath = `${fastify.prefix}/upload`;
 
@@ -183,6 +230,7 @@ const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
     tusPath,
     maxSize: maxUploadSize,
     allowedExtensions,
+    validatePayload,
     onUploadComplete,
   });
 
@@ -283,6 +331,51 @@ const pulseVaultRoutes: FastifyPluginAsync<PulseVaultRoutesOptions> = async (
     schema: tusRouteSchema,
     handler: tusHandler,
   });
+
+  fastify.delete(
+    "/:videoid",
+    { schema: videoDeleteSchema },
+    async (request, reply) => {
+      const videoid = (request.params as { videoid?: unknown })?.videoid;
+      if (!isUuid(videoid)) {
+        return reply
+          .code(400)
+          .send(pulseVaultError("`videoid` must be a valid UUID"));
+      }
+
+      request.pulseVault = { videoid };
+
+      if (authorize) {
+        try {
+          await authorize(request, { phase: "delete", videoid });
+        } catch (err) {
+          const statusCode = extractAuthzStatus(err);
+          const message = extractAuthzMessage(err);
+          request.log.info(
+            { err, videoid, phase: "delete", statusCode },
+            "pulsevault authorize rejected",
+          );
+          return reply.code(statusCode).send(pulseVaultError(message));
+        }
+      }
+
+      if (typeof storage.remove !== "function") {
+        return reply
+          .code(501)
+          .send(
+            pulseVaultError(
+              "Storage adapter does not support delete",
+            ),
+          );
+      }
+
+      const removed = await storage.remove(videoid);
+      if (!removed) {
+        return reply.code(404).send(pulseVaultError("Video not found"));
+      }
+      return reply.code(204).send();
+    },
+  );
 
   fastify.get("/:videoid", { schema: videoGetSchema }, async (request, reply) => {
     const videoid = (request.params as { videoid?: unknown })?.videoid;

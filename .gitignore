@@ -26,6 +26,8 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
+.claude
+
 # Editor / OS
 .DS_Store
 .vscode/

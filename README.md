@@ -1,6 +1,8 @@
 # @mieweb/pulsevault
 
-Fastify plugin for resumable video uploads via the [TUS protocol](https://tus.io/), with local filesystem storage and deep link helpers for the [Pulse](https://github.com/mieweb/pulse) mobile app.
+Fastify plugin for resumable video uploads via the [TUS protocol](https://tus.io/), with filesystem-first local storage and deep link helpers for the [Pulse](https://github.com/mieweb/pulse) mobile app.
+
+The local storage adapter writes to a stable on-disk layout (see [Local storage](#local-storage)) so you can layer post-processing — transcription, thumbnails, AI analysis — directly against the files from an `onUploadComplete` hook.
 
 ## Requirements
 
@@ -24,7 +26,7 @@ const app = Fastify();
 
 await app.register(pulseVault, {
   prefix: "",
-  storage: createLocalStorage({ workspaceDir: "./data", podId: "my-server" }),
+  storage: createLocalStorage({ workspaceDir: "./data" }),
   maxUploadSize: 5 * 1024 * 1024 * 1024, // 5 GiB
 });
 
@@ -38,15 +40,20 @@ await app.listen({ port: 3030 });
 
 ## Routes
 
-The plugin mounts three routes under `prefix`:
+The plugin mounts the following routes under `prefix`:
 
-| Method  | Path          | Description                              |
-| ------- | ------------- | ---------------------------------------- |
-| `POST`  | `/upload`     | Create a TUS upload session              |
-| `PATCH` | `/upload/:id` | Upload chunks                            |
-| `GET`   | `/:videoid`   | Stream or redirect to the uploaded video |
+| Method                         | Path          | Description                                       |
+| ------------------------------ | ------------- | ------------------------------------------------- |
+| `POST`                         | `/upload`     | Create a TUS upload session                       |
+| `PATCH` / `HEAD` / `DELETE` \* | `/upload/:id` | Upload chunks, probe offset, cancel upload (TUS)  |
+| `GET`                          | `/:videoid`   | Stream or redirect to the uploaded video          |
+| `DELETE`                       | `/:videoid`   | Delete a finalized upload (bytes + sidecar)       |
+
+\* `DELETE /upload/:id` is TUS's own "cancel in-flight upload" — distinct from `DELETE /:videoid`, which removes a finalized video.
 
 > `POST /reserve` is **not** part of the plugin. Your server implements it so you control auth, ownership, and any business logic tied to video creation.
+
+`GET /:videoid` only serves uploads whose adapter has been told to mark them ready. With the built-in local adapter, that means the final PATCH has landed *and* `validatePayload` (if configured) accepted the bytes. In-progress uploads return 404.
 
 ## Plugin options
 
@@ -59,13 +66,14 @@ type PulseVaultPluginOptions = {
   allowedExtensions?: string[]; // default: [".mp4"]
   cache?: PulseVaultCacheOptions;
   authorize?: PulseVaultAuthorize;
+  validatePayload?: PulseVaultValidatePayload;
   onUploadComplete?: PulseVaultOnUploadComplete;
 };
 ```
 
 ### `storage`
 
-A `PulseVaultStorage` adapter. Use the built-in `createLocalStorage` for filesystem-backed deployments or implement the interface for custom backends.
+A `PulseVaultStorage` adapter. Use the built-in `createLocalStorage` for filesystem-backed deployments (the blessed default) or implement the interface for custom backends (S3, GCS, etc.).
 
 ### `prefix`
 
@@ -107,12 +115,15 @@ Upload filenames are keyed by UUID, so `immutable: true` is safe when `maxAge` i
 
 ### `authorize`
 
-Optional async hook called before TUS create/patch and before GET resolve. Throw to reject — a `statusCode` or `status_code` number on the thrown error is used as the HTTP status (default `403`).
+Optional async hook called before TUS create/patch, before GET resolve, and before DELETE. Throw to reject — a `statusCode` or `status_code` number on the thrown error is used as the HTTP status (default `403`).
 
 ```ts
 type PulseVaultAuthorize = (
   request: FastifyRequest,
-  ctx: { phase: "create" | "patch" | "resolve"; videoid: string },
+  ctx: {
+    phase: "create" | "patch" | "resolve" | "delete";
+    videoid: string;
+  },
 ) => void | Promise<void>;
 ```
 
@@ -128,9 +139,47 @@ await app.register(pulseVault, {
 });
 ```
 
+### `validatePayload`
+
+Optional async hook that runs *after* TUS writes the final byte but *before* the upload is marked ready or `onUploadComplete` fires. Throw to reject — the plugin calls `storage.remove` to free the bytes and returns a 4xx (default 422) to the client. The sidecar never flips to `"ready"`, so the video is never served.
+
+```ts
+type PulseVaultValidatePayload = (
+  request: FastifyRequest,
+  ctx: {
+    videoid: string;
+    size: number;
+    uploadId: string;
+    /** Absolute path to finalized bytes for adapters that expose `getLocalPath`. */
+    localPath: string | null;
+  },
+) => void | Promise<void>;
+```
+
+Use for magic-byte sniffing, virus scanning, size re-checks — anything that needs the final bytes. A ready-made helper ships with the package:
+
+```ts
+import pulseVault, {
+  createLocalStorage,
+  createMp4Sniffer,
+} from "@mieweb/pulsevault";
+
+const storage = createLocalStorage({ workspaceDir: "./data" });
+
+await app.register(pulseVault, {
+  // ...
+  storage,
+  validatePayload: createMp4Sniffer(storage),
+});
+```
+
+`createMp4Sniffer` reads the first 12 bytes and verifies the ISOBMFF `ftyp` header (MP4, MOV, M4V, 3GP). Uploads that pass the extension check but contain non-video bytes are rejected with 422 and the disk is cleaned up.
+
+The lower-level `sniffMp4(path)` is also exported if you want to drive your own validator.
+
 ### `onUploadComplete`
 
-Optional async hook fired once the final byte is written, before the success response is sent. Use it to update a database row, enqueue a job, or write an audit log. Throwing returns a `500` to the client.
+Optional async hook fired once the final byte is written, `validatePayload` has passed, and the sidecar has been marked ready. Use it to update a database row, enqueue a job, or write an audit log. Throwing returns a `500` to the client. The video is ready at this point — if you want all-or-nothing semantics, call `storage.remove` before throwing.
 
 ```ts
 type PulseVaultOnUploadComplete = (
@@ -139,6 +188,14 @@ type PulseVaultOnUploadComplete = (
 ) => void | Promise<void>;
 ```
 
+### Upload-complete sequencing
+
+When the final PATCH lands, the plugin runs the following in order. Any step failing short-circuits the rest.
+
+1. **`validatePayload`** (optional) — throws → `storage.remove(videoid)`, HTTP 4xx (default 422).
+2. **`storage.markReady(videoid)`** — flips the sidecar so `resolve()` will serve the bytes.
+3. **`onUploadComplete`** (optional) — throws → HTTP 500; bytes remain on disk and ready unless the consumer explicitly removes them.
+
 ## Local storage
 
 ```ts
@@ -146,11 +203,54 @@ import { createLocalStorage } from "@mieweb/pulsevault";
 
 const storage = createLocalStorage({
   workspaceDir: "./data", // directory for uploads; created if absent
-  podId: "my-server", // unique id across plugin instances in the same process
 });
 ```
 
-The returned adapter also exposes `storage.pod` and `storage.workspaceRoot` for consumers that need direct access to the underlying ArtiPod.
+### Filesystem layout (stable contract)
+
+The local adapter writes each upload into a self-describing per-video directory. Downstream tools may rely on this layout across minor versions:
+
+```text
+<workspaceRoot>/<videoid>/
+  .pulsevault.json           # sidecar: { version, ext, filename, status }
+  video/<videoid><ext>       # upload bytes (partial during upload, full when ready)
+  video/<videoid><ext>.json  # @tus/file-store's offset/metadata sidecar
+```
+
+`status` is `"uploading"` between `reserveUpload` and the successful final PATCH; `"ready"` thereafter. `GET /:videoid` only serves `"ready"` uploads.
+
+The adapter exposes `storage.workspaceRoot` (absolute, resolved from `workspaceDir`) so consumers can compute per-video paths without re-implementing the layout.
+
+### Post-processing (transcription, thumbnails, AI)
+
+The filesystem layout is the integration surface. Use the `onUploadComplete` hook as your trigger. For example, to hydrate an [ArtiPod](https://github.com/mieweb/artipod) with the video plus sibling artifact directories:
+
+```ts
+import path from "node:path";
+import { ArtiPod, ArtiMount } from "@mieweb/artipod";
+import pulseVault, { createLocalStorage } from "@mieweb/pulsevault";
+
+const storage = createLocalStorage({ workspaceDir: "./data" });
+
+await app.register(pulseVault, {
+  prefix: "",
+  storage,
+  maxUploadSize: 5 * 1024 * 1024 * 1024,
+  onUploadComplete: async (_req, { videoid }) => {
+    const root = path.join(storage.workspaceRoot, videoid);
+    const pod = new ArtiPod({ id: videoid, useMainMount: false });
+    pod.addMount(new ArtiMount("video", path.join(root, "video")));
+    // Create these lazily as your pipeline produces artifacts:
+    // pod.addMount(new ArtiMount("transcripts", path.join(root, "transcripts")));
+    // pod.addMount(new ArtiMount("frames", path.join(root, "frames")));
+    await pod.initialize();
+    // Run a containerized transcription step, build an LLM prompt from
+    // collected artifacts, etc. See the @mieweb/artipod docs for details.
+  },
+});
+```
+
+`@mieweb/artipod` is **not** a dependency of this plugin — install it in your app only if you want it. Any filesystem-native pipeline (ffmpeg, whisper, rsync) works equally well.
 
 ## Custom storage adapter
 
@@ -172,16 +272,29 @@ const storage: PulseVaultStorage = {
   },
   async reserveUpload({ videoid, filename, ext }) {
     // Called by the TUS naming function. Return the file id for the datastore.
-    await db.createVideo({ videoid, filename });
+    await db.createVideo({ videoid, filename, status: "uploading" });
     return `${videoid}${ext}`;
   },
   async resolve(videoid): Promise<PulseVaultResolution | null> {
     const video = await db.findVideo(videoid);
-    if (!video) return null;
+    if (!video || video.status !== "ready") return null;
     // Stream from local disk:
     return { kind: "stream", root: "/uploads", filename: video.filename };
     // Or redirect to a CDN / presigned URL:
     // return { kind: "redirect", url: video.signedUrl, statusCode: 302 };
+  },
+  async markReady(videoid) {
+    // Called after `validatePayload` (if any) accepts the bytes. Flip your
+    // state so `resolve` starts returning non-null. Omit this method if
+    // your backend can't distinguish in-progress from finalized uploads.
+    await db.updateVideo(videoid, { status: "ready" });
+  },
+  async remove(videoid) {
+    // Called from DELETE /:videoid and from the plugin's cleanup path when
+    // `validatePayload` rejects an upload. Return false if the videoid was
+    // already absent.
+    const result = await db.deleteVideo(videoid);
+    return result.deleted;
   },
 };
 ```
@@ -211,6 +324,14 @@ const uploadLink = buildUploadLink({
   token: "secret", // optional
 });
 ```
+
+## Tests
+
+```sh
+npm test
+```
+
+Runs a Node `--test` suite against the built plugin: TUS create/HEAD/PATCH resume, collision handling, extension rejection, range GETs, the ready-gate (`GET` returns 404 while uploading), `DELETE /:videoid`, `authorize` rejection on every phase, `validatePayload` + `createMp4Sniffer`, `onUploadComplete` dispatch, and sidecar corruption recovery.
 
 ## Accessing storage outside the plugin routes
 

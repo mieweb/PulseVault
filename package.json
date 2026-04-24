@@ -1,7 +1,7 @@
 {
   "name": "@mieweb/pulsevault",
   "version": "0.0.1",
-  "description": "Fastify plugin for resumable video uploads via TUS, with a pluggable storage adapter and first-party @mieweb/artipod-backed local storage.",
+  "description": "Fastify plugin for resumable video uploads via TUS, with a pluggable storage adapter and a filesystem-first local-storage default.",
   "type": "module",
   "main": "./dist/app.js",
   "types": "./dist/app.d.ts",
@@ -25,7 +25,8 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [
     "fastify",
@@ -35,7 +36,6 @@
     "video",
     "upload",
     "resumable",
-    "artipod",
     "pulsevault"
   ],
   "author": "Medical Informatics Engineering, Inc.",
@@ -43,6 +43,14 @@
     "morepriyam (https://github.com/morepriyam)"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mieweb/pulsevault-npm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mieweb/pulsevault-npm/issues"
+  },
+  "homepage": "https://github.com/mieweb/pulsevault-npm#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -52,7 +60,6 @@
   },
   "dependencies": {
     "@fastify/send": "^4.1.0",
-    "@mieweb/artipod": "^0.3.1",
     "@tus/file-store": "^2.0.0",
     "@tus/server": "^2.0.0",
     "fastify-plugin": "^5.1.0"

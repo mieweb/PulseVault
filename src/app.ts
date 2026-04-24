@@ -6,6 +6,7 @@ import pulseVaultRoutes, {
   type PulseVaultAuthorizePhase,
 } from "./routes/pulsevault.js";
 import type { PulseVaultOnUploadComplete } from "./lib/pulsevaultTus.js";
+import type { PulseVaultValidatePayload } from "./lib/magic.js";
 import type { PulseVaultStorage } from "./storage/types.js";
 
 /**
@@ -85,10 +86,24 @@ export type PulseVaultPluginOptions = {
    */
   authorize?: PulseVaultAuthorize;
   /**
-   * Optional post-upload hook. Fires once TUS writes the final byte, before
-   * the success response is sent to the client. Use this to flip consumer
-   * state (DB row, queue job, audit log). Throwing turns the upload into a
-   * 500 response, so the client knows bytes landed but completion failed.
+   * Optional payload-validation hook. Runs *after* TUS writes the final byte
+   * but *before* the upload is marked ready or `onUploadComplete` fires.
+   * Throw to reject — the plugin will call `storage.remove` to free the
+   * bytes and return a 4xx (default 422) to the client. The sidecar never
+   * flips to `"ready"`, so the video is never served.
+   *
+   * Use this for magic-byte sniffing, virus scanning, or any check that
+   * needs the final bytes. Ship-ready helpers are exported from this
+   * package — see `createMp4Sniffer`.
+   */
+  validatePayload?: PulseVaultValidatePayload;
+  /**
+   * Optional post-upload hook. Fires once TUS writes the final byte *and*
+   * any `validatePayload` has passed, and after the adapter's `markReady`
+   * has run. Use this to flip consumer state (DB row, queue job, audit
+   * log). Throwing turns the upload into a 500 response; the video is
+   * marked ready at this point, so consumers that want all-or-nothing
+   * semantics should `storage.remove` before throwing.
    */
   onUploadComplete?: PulseVaultOnUploadComplete;
 };
@@ -150,6 +165,7 @@ const app: FastifyPluginAsync<PulseVaultPluginOptions> = async (
     allowedExtensions,
     cache: opts.cache,
     authorize: opts.authorize,
+    validatePayload: opts.validatePayload,
     onUploadComplete: opts.onUploadComplete,
   });
 };
@@ -172,6 +188,8 @@ export type {
   PulseVaultAuthorizePhase,
 } from "./routes/pulsevault.js";
 export type { PulseVaultOnUploadComplete } from "./lib/pulsevaultTus.js";
+export { sniffMp4, createMp4Sniffer } from "./lib/magic.js";
+export type { PulseVaultValidatePayload } from "./lib/magic.js";
 export {
   buildConfigureDestinationLink,
   buildUploadLink,

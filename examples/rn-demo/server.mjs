@@ -10,6 +10,7 @@ import fastifySwaggerUI from "@fastify/swagger-ui";
 import QRCode from "qrcode";
 import pulseVault, {
   createLocalStorage,
+  createMp4Sniffer,
   buildConfigureDestinationLink,
   buildUploadLink,
 } from "@mieweb/pulsevault";
@@ -253,14 +254,14 @@ app.get(
 );
 
 // Mount plugin at root prefix so TUS is at POST /upload and video GET is at /:videoid
+const pulseStorage = createLocalStorage({ workspaceDir: dataDir });
 await app.register(pulseVault, {
   prefix: "",
-  storage: createLocalStorage({
-    workspaceDir: dataDir,
-    podId: "rn-demo",
-  }),
+  storage: pulseStorage,
   maxUploadSize: 5 * 1024 * 1024 * 1024, // 5 GiB
   allowedExtensions: [".mp4"],
+  // Reject anything that doesn't look like an MP4 at the final PATCH.
+  validatePayload: createMp4Sniffer(pulseStorage),
 });
 
 const port = Number(process.env.PORT ?? 3000);

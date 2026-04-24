@@ -56,7 +56,27 @@ export interface PulseVaultStorage {
 
   /**
    * Called by the GET route. Returns how to serve the video, or `null` if
-   * the videoid is unknown.
+   * the videoid is unknown *or* the upload is still in progress — adapters
+   * that implement `markReady` should only return non-null once the bytes
+   * have been promoted to "ready."
    */
   resolve(videoid: string): Promise<PulseVaultResolution | null>;
+
+  /**
+   * Mark an upload as fully written and safe to serve. Called by the plugin
+   * after the final byte lands and any `validatePayload` + `onUploadComplete`
+   * hooks succeed. Adapters that do not distinguish uploading from ready
+   * (e.g. S3 multipart, which only materializes on CompleteMultipartUpload)
+   * may omit this method — `resolve` will be trusted to only return finished
+   * uploads in that case.
+   */
+  markReady?(videoid: string): Promise<void>;
+
+  /**
+   * Delete all storage associated with a videoid. Returns `true` if
+   * something was removed, `false` if the videoid was already absent.
+   * Called both from the `DELETE /:videoid` route and from the plugin's
+   * cleanup path when `validatePayload` rejects a completed upload.
+   */
+  remove?(videoid: string): Promise<boolean>;
 }
