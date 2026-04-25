@@ -45,12 +45,12 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mieweb/pulsevault-npm.git"
+    "url": "git+https://github.com/mieweb/pulsevault.git"
   },
   "bugs": {
-    "url": "https://github.com/mieweb/pulsevault-npm/issues"
+    "url": "https://github.com/mieweb/pulsevault/issues"
   },
-  "homepage": "https://github.com/mieweb/pulsevault-npm#readme",
+  "homepage": "https://github.com/mieweb/pulsevault#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
