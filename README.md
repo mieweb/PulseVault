@@ -2,6 +2,38 @@
 
 Fastify plugin for resumable video uploads via the [TUS protocol](https://tus.io/), with filesystem-first local storage and deep link helpers for the [Pulse](https://github.com/mieweb/pulse) mobile app.
 
+```text
+    Pulse app                   Your Fastify app
+    ─────────                   ────────────────
+
+   ┌───────────┐    pair +    ┌──────────────────────┐
+   │ iOS / web │ ─── TUS ───► │  Pulsevault plugin   │
+   └───────────┘              │  POST  /upload       │
+                              │  PATCH /upload/:id   │
+                              │  GET   /:videoid     │
+                              └──────────┬───────────┘
+                                         │
+                                         ▼
+                              ┌──────────────────────┐
+                              │  Your hooks          │
+                              │  • authorize         │
+                              │  • validatePayload   │
+                              │  • onUploadComplete  │
+                              └──┬─────────────────┬─┘
+                                 │                 │
+                                 ▼                 ▼
+                          ┌──────────────┐  ┌──────────────┐
+                          │   Storage    │  │ Your systems │
+                          │   adapter    │  │  DB · SSO ·  │
+                          │ local / S3 / │  │  audit logs  │
+                          │ GCS / custom │  │  pipelines   │
+                          └──────────────┘  └──────────────┘
+```
+
+Self-hosted video capture for places that can't ship recordings to a vendor. Pulse records the walkthrough on the phone; Pulsevault receives it inside the Fastify app you already run, behind your auth, on your storage. Pair a device by QR code and upload over TUS so two-minute captures from the floor survive signal drops and device restarts.
+
+Hook in at `authorize`, `validatePayload`, or `onUploadComplete` to bolt on whatever your institution already runs — SSO, audit logs, transcoding queues, AI pipelines. The plugin mounts three routes; the rest stays yours.
+
 The local storage adapter writes to a stable on-disk layout (see [Local storage](#local-storage)) so you can layer post-processing — transcription, thumbnails, AI analysis — directly against the files from an `onUploadComplete` hook.
 
 ## Requirements
@@ -42,18 +74,18 @@ await app.listen({ port: 3030 });
 
 The plugin mounts the following routes under `prefix`:
 
-| Method                         | Path          | Description                                       |
-| ------------------------------ | ------------- | ------------------------------------------------- |
-| `POST`                         | `/upload`     | Create a TUS upload session                       |
-| `PATCH` / `HEAD` / `DELETE` \* | `/upload/:id` | Upload chunks, probe offset, cancel upload (TUS)  |
-| `GET`                          | `/:videoid`   | Stream or redirect to the uploaded video          |
-| `DELETE`                       | `/:videoid`   | Delete a finalized upload (bytes + sidecar)       |
+| Method                         | Path          | Description                                      |
+| ------------------------------ | ------------- | ------------------------------------------------ |
+| `POST`                         | `/upload`     | Create a TUS upload session                      |
+| `PATCH` / `HEAD` / `DELETE` \* | `/upload/:id` | Upload chunks, probe offset, cancel upload (TUS) |
+| `GET`                          | `/:videoid`   | Stream or redirect to the uploaded video         |
+| `DELETE`                       | `/:videoid`   | Delete a finalized upload (bytes + sidecar)      |
 
 \* `DELETE /upload/:id` is TUS's own "cancel in-flight upload" — distinct from `DELETE /:videoid`, which removes a finalized video.
 
 > `POST /reserve` is **not** part of the plugin. Your server implements it so you control auth, ownership, and any business logic tied to video creation.
 
-`GET /:videoid` only serves uploads whose adapter has been told to mark them ready. With the built-in local adapter, that means the final PATCH has landed *and* `validatePayload` (if configured) accepted the bytes. In-progress uploads return 404.
+`GET /:videoid` only serves uploads whose adapter has been told to mark them ready. With the built-in local adapter, that means the final PATCH has landed _and_ `validatePayload` (if configured) accepted the bytes. In-progress uploads return 404.
 
 ## Plugin options
 
@@ -141,7 +173,7 @@ await app.register(pulseVault, {
 
 ### `validatePayload`
 
-Optional async hook that runs *after* TUS writes the final byte but *before* the upload is marked ready or `onUploadComplete` fires. Throw to reject — the plugin calls `storage.remove` to free the bytes and returns a 4xx (default 422) to the client. The sidecar never flips to `"ready"`, so the video is never served.
+Optional async hook that runs _after_ TUS writes the final byte but _before_ the upload is marked ready or `onUploadComplete` fires. Throw to reject — the plugin calls `storage.remove` to free the bytes and returns a 4xx (default 422) to the client. The sidecar never flips to `"ready"`, so the video is never served.
 
 ```ts
 type PulseVaultValidatePayload = (
