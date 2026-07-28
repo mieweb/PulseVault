@@ -101,6 +101,23 @@ test("name is trimmed and hard-capped at the server-side limit", async () => {
   }
 });
 
+test("caps by code point so a boundary emoji is never split into a lone surrogate", async () => {
+  const ctx = await startApp();
+  try {
+    // The emoji lands exactly on the MAX_NAME boundary; a UTF-16 `.slice()`
+    // would keep only its leading surrogate and drop a lone half.
+    const title = "x".repeat(MAX_NAME - 1) + "😀" + "tail";
+    await uploadFull(ctx.baseUrl, PREFIX, { artifactId: ID2, name: title });
+    const stored = await ctx.storage.getName(ID2);
+    assert.equal(stored, "x".repeat(MAX_NAME - 1) + "😀");
+    // Emoji intact: MAX_NAME code points, and the string is well-formed UTF-16.
+    assert.equal(Array.from(stored).length, MAX_NAME);
+    assert.equal(stored.toWellFormed(), stored);
+  } finally {
+    await ctx.teardown();
+  }
+});
+
 test("getName returns null for an unknown artifactId", async () => {
   const ctx = await startApp();
   try {

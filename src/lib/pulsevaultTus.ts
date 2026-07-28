@@ -143,7 +143,13 @@ function parseUploadMetadata(
   const checksum = (metadata?.checksum ?? '').trim() || undefined;
   // Free-form display title. Trim, then hard-cap length so a hostile or buggy
   // client can't bloat the sidecar; an all-whitespace/empty value is dropped.
-  const name = (metadata?.name ?? '').trim().slice(0, MAX_ARTIFACT_NAME_LENGTH) || undefined;
+  // Cap by code point (Array.from iterates code points) rather than by
+  // `.slice()`'s UTF-16 units, so a title truncated at the boundary can't be
+  // left with a split surrogate pair (a half-emoji / lone surrogate).
+  const name =
+    Array.from((metadata?.name ?? '').trim())
+      .slice(0, MAX_ARTIFACT_NAME_LENGTH)
+      .join('') || undefined;
 
   return { artifactId, filename, kind, relatedTo, checksum, name };
 }

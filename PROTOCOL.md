@@ -144,6 +144,11 @@ pairs) MUST be parsed for at least:
 | `checksum` | No | `<algorithm>:<hex digest>` of the finished file (§6.3). |
 | `name` | No | Free-form UTF-8 display title for the artifact (e.g. the draft name typed on the capture device). Trimmed and length-capped by the server; persisted for consumers to label the artifact. Display metadata only — it MUST NOT influence storage paths, routing, or authorization, and consumers MUST escape it for their output context. |
 
+Metadata values are base64 per the TUS spec; a free-form value such as `name`
+MUST be base64 of its **UTF-8** bytes. A client that base64-encodes a raw
+Latin-1 string (e.g. a browser `btoa()`) corrupts any non-ASCII title (accents,
+emoji), so encode the UTF-8 bytes explicitly.
+
 A client MUST always send `artifactId` (not only the legacy aliases) on new
 uploads. A server MUST continue accepting `videoid`/`projectid` as aliases
 for `artifactId` for back-compat with clients built against protocol

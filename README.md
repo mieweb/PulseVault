@@ -574,7 +574,7 @@ The local adapter writes uploads into flat kind-scoped subdirectories. Downstrea
 
 `status` is `"uploading"` between `reserveUpload` and the successful final PATCH; `"ready"` thereafter. `GET /artifacts/:id` only serves `"ready"` uploads. `kind` defaults to `"video"` when absent (back-compat with pre-kind sidecars).
 
-The adapter exposes `storage.workspaceRoot` (absolute, resolved from `workspaceDir`) so consumers can compute per-resource paths without re-implementing the layout. `storage.getKind(id)` returns `"video" | "project" | "captions" | null`; `storage.getRelatedTo(id)` and `storage.getChecksum(id)` return the corresponding sidecar fields, each `null` if absent/unknown.
+The adapter exposes `storage.workspaceRoot` (absolute, resolved from `workspaceDir`) so consumers can compute per-resource paths without re-implementing the layout. `storage.getKind(id)` returns `"video" | "project" | "captions" | null`; `storage.getRelatedTo(id)`, `storage.getChecksum(id)`, and `storage.getName(id)` return the corresponding sidecar fields, each `null` if absent/unknown.
 
 **Horizontal scaling**: this adapter requires sticky-session routing or a shared filesystem across instances — see `OPERATIONS.md`.
 
@@ -659,14 +659,14 @@ Credentials are optional — omit `accessKeyId`/`secretAccessKey` to use the AWS
 
 ```text
 <bucket>/
-  .pulsevault/<id>.json   # metadata sidecar: { version, ext, filename, status, kind, relatedTo, checksum }
+  .pulsevault/<id>.json   # metadata sidecar: { version, ext, filename, status, kind, relatedTo, checksum, name }
   video/<id><ext>         # finalized video object    (kind="video")
   project/<id><ext>       # finalized project object  (kind="project")
   captions/<id><ext>      # finalized captions object (kind="captions")
   <key>.info              # @tus/s3-store multipart bookkeeping (transient)
 ```
 
-`resolve()` only returns a presigned URL once the sidecar `status` is `"ready"` (after the final byte lands and `validatePayload` passes), so in-progress or rejected uploads are never served. `getKind(id)` returns the kind without a full resolve; `getRelatedTo(id)`/`getChecksum(id)` mirror the local adapter.
+`resolve()` only returns a presigned URL once the sidecar `status` is `"ready"` (after the final byte lands and `validatePayload` passes), so in-progress or rejected uploads are never served. `getKind(id)` returns the kind without a full resolve; `getRelatedTo(id)`/`getChecksum(id)`/`getName(id)` mirror the local adapter.
 
 ### Options
 
@@ -711,9 +711,9 @@ const storage: PulseVaultStorage = {
   async shutdown() {
     /* optional teardown */
   },
-  async reserveUpload({ artifactId, filename, ext, kind, relatedTo, checksum }) {
+  async reserveUpload({ artifactId, filename, ext, kind, relatedTo, checksum, name }) {
     // Called by the TUS naming function. Return the file id for the datastore.
-    await db.createArtifact({ artifactId, filename, kind, relatedTo, checksum, status: "uploading" });
+    await db.createArtifact({ artifactId, filename, kind, relatedTo, checksum, name, status: "uploading" });
     return `${kind}/${artifactId}${ext}`;
   },
   async resolve(artifactId): Promise<PulseVaultResolution | null> {
@@ -737,10 +737,12 @@ const storage: PulseVaultStorage = {
     const result = await db.deleteArtifact(artifactId);
     return result.deleted;
   },
-  // Optional — only needed if you use relatedTo/checksum-aware hooks/validators:
+  // Optional — relatedTo/checksum-aware hooks/validators, plus getName so a
+  // display title is available via storage.getName:
   async getKind(artifactId) { return (await db.findArtifact(artifactId))?.kind ?? null; },
   async getRelatedTo(artifactId) { return (await db.findArtifact(artifactId))?.relatedTo ?? null; },
   async getChecksum(artifactId) { return (await db.findArtifact(artifactId))?.checksum ?? null; },
+  async getName(artifactId) { return (await db.findArtifact(artifactId))?.name ?? null; },
 };
 ```
 
@@ -782,7 +784,7 @@ Runs a Node `--test` suite against the built plugin. Coverage includes:
 - `kind=project` and `kind=captions` happy paths — correct subdir, `Content-Type`, sidecar, `relatedTo` linking
 - Extension mismatch rejections in both directions
 - `artifactId`/`videoid`/`projectid` metadata aliases
-- `getKind()`/`getRelatedTo()`/`getChecksum()` storage methods
+- `getKind()`/`getRelatedTo()`/`getChecksum()`/`getName()` storage methods
 - Legacy sidecars (no `kind` field) default to `"video"`, readable through the new generic route with no data migration
 - Sidecar corruption recovery
 - `allowedExtensions` object form
