@@ -142,6 +142,7 @@ pairs) MUST be parsed for at least:
 | `kind` | No, defaults to `video` | `video`, `project`, `captions`, or `thumbnail`. |
 | `relatedTo` | No | UUID of another artifact this one belongs to (§8). |
 | `checksum` | No | `<algorithm>:<hex digest>` of the finished file (§6.3). |
+| `name` | No | Free-form UTF-8 display title for the artifact (e.g. the draft name typed on the capture device). Trimmed and length-capped by the server; persisted for consumers to label the artifact. Display metadata only — it MUST NOT influence storage paths, routing, or authorization, and consumers MUST escape it for their output context. |
 
 A client MUST always send `artifactId` (not only the legacy aliases) on new
 uploads. A server MUST continue accepting `videoid`/`projectid` as aliases

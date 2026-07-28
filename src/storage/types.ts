@@ -77,6 +77,16 @@ export type ReserveUploadParams = {
    * two separate HTTP requests).
    */
   checksum?: string;
+  /**
+   * Optional human-facing display name for the artifact, from
+   * `Upload-Metadata.name` (e.g. the draft/project title the user typed on the
+   * capture device). Free-form UTF-8, trimmed and length-capped upstream;
+   * persisted verbatim so a consumer can label the artifact without inventing a
+   * title from the opaque `artifactId`. Never used to build a filesystem path
+   * or object key — it's display metadata with no routing or security role, so
+   * consumers MUST escape it for their own output context (HTML, shell, etc.).
+   */
+  name?: string;
 };
 
 /**
@@ -151,4 +161,12 @@ export interface PulseVaultStorage {
    * `createChecksumValidator`/`createS3ChecksumValidator` at completion time.
    */
   getChecksum?(artifactId: string): Promise<string | null>;
+
+  /**
+   * Return the `name` display metadata stored at `reserveUpload` time, or
+   * `null` if the artifactId is unknown or no name was supplied. Convenience
+   * for consumers that read through the adapter API rather than the on-disk
+   * sidecar directly.
+   */
+  getName?(artifactId: string): Promise<string | null>;
 }

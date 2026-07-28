@@ -39,6 +39,8 @@ type Sidecar = {
   relatedTo?: string;
   /** Optional client-supplied checksum metadata. See `ReserveUploadParams.checksum`. */
   checksum?: string;
+  /** Optional human-facing display name. See `ReserveUploadParams.name`. */
+  name?: string;
 };
 
 const SIDECAR_VERSION = 1 as const;
@@ -53,6 +55,7 @@ type CachedMeta = {
   kind: UploadKind;
   relatedTo?: string;
   checksum?: string;
+  name?: string;
 };
 
 /** Map a file extension to the `Content-Type` the GET route should return. */
@@ -82,6 +85,7 @@ function sidecarToCachedMeta(sidecar: Sidecar, ready: boolean): CachedMeta {
     kind: sidecar.kind ?? 'video',
     relatedTo: sidecar.relatedTo,
     checksum: sidecar.checksum,
+    name: sidecar.name,
   };
 }
 
@@ -103,7 +107,7 @@ export type LocalStorageOptions = {
  *
  * ```text
  * <workspaceRoot>/
- *   .pulsevault/<artifactId>.json   # sidecar: { version, ext, filename, status, kind, relatedTo }
+ *   .pulsevault/<artifactId>.json   # sidecar: { version, ext, filename, status, kind, relatedTo, checksum, name }
  *   video/<artifactId><ext>         # finalized video bytes
  *   video/<artifactId><ext>.json    # @tus/file-store offset/metadata sidecar
  *   project/<artifactId><ext>       # finalized project bytes
@@ -137,6 +141,8 @@ export type LocalStorage = PulseVaultStorage & {
   getRelatedTo(artifactId: string): Promise<string | null>;
   /** Satisfies the optional `PulseVaultStorage.getChecksum` contract. */
   getChecksum(artifactId: string): Promise<string | null>;
+  /** Satisfies the optional `PulseVaultStorage.getName` contract. */
+  getName(artifactId: string): Promise<string | null>;
 };
 
 export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
@@ -232,6 +238,7 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
         kind,
         relatedTo: typeof parsed.relatedTo === 'string' ? parsed.relatedTo : undefined,
         checksum: typeof parsed.checksum === 'string' ? parsed.checksum : undefined,
+        name: typeof parsed.name === 'string' ? parsed.name : undefined,
       };
     } catch {
       // Malformed sidecar — treat as absent. `reserveUpload` will rewrite
@@ -267,6 +274,7 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
     kind,
     relatedTo,
     checksum,
+    name,
   }: ReserveUploadParams): Promise<string> => {
     await fs.mkdir(path.join(workspaceRoot, kind), { recursive: true, mode: 0o750 });
     await fs.mkdir(sidecarDir(), { recursive: true, mode: 0o750 });
@@ -279,6 +287,7 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
       kind,
       relatedTo,
       checksum,
+      name,
     };
 
     // Collision guard: `wx` fails atomically with EEXIST if a sidecar already exists for
@@ -304,7 +313,7 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
       await writeSidecar(artifactId, sidecar);
     }
 
-    cacheSet(artifactId, { ext, ready: false, kind, relatedTo, checksum });
+    cacheSet(artifactId, { ext, ready: false, kind, relatedTo, checksum, name });
     // @tus/file-store joins this onto its configured `directory`, so the
     // actual file lands at `<workspaceRoot>/<kind>/<artifactId><ext>`.
     return artifactRelPath(artifactId, kind, ext);
@@ -385,6 +394,11 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
     return meta?.checksum ?? null;
   };
 
+  const getName = async (artifactId: string): Promise<string | null> => {
+    const meta = await loadMeta(artifactId);
+    return meta?.name ?? null;
+  };
+
   return {
     datastore,
     workspaceRoot,
@@ -397,5 +411,6 @@ export function createLocalStorage(opts: LocalStorageOptions): LocalStorage {
     getKind,
     getRelatedTo,
     getChecksum,
+    getName,
   };
 }

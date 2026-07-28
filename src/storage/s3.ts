@@ -40,6 +40,8 @@ type Sidecar = {
   relatedTo?: string;
   /** Optional client-supplied checksum metadata. See `ReserveUploadParams.checksum`. */
   checksum?: string;
+  /** Optional human-facing display name. See `ReserveUploadParams.name`. */
+  name?: string;
 };
 
 const SIDECAR_VERSION = 1 as const;
@@ -56,6 +58,7 @@ type CachedMeta = {
   kind: UploadKind;
   relatedTo?: string;
   checksum?: string;
+  name?: string;
 };
 
 /** Map a file extension to the `Content-Type` the playback URL should return. */
@@ -85,6 +88,7 @@ function sidecarToCachedMeta(sidecar: Sidecar, ready: boolean): CachedMeta {
     kind: sidecar.kind ?? 'video',
     relatedTo: sidecar.relatedTo,
     checksum: sidecar.checksum,
+    name: sidecar.name,
   };
 }
 
@@ -177,6 +181,8 @@ export type S3Storage = PulseVaultStorage & {
   getRelatedTo(artifactId: string): Promise<string | null>;
   /** Satisfies the optional `PulseVaultStorage.getChecksum` contract. */
   getChecksum(artifactId: string): Promise<string | null>;
+  /** Satisfies the optional `PulseVaultStorage.getName` contract. */
+  getName(artifactId: string): Promise<string | null>;
 };
 
 /**
@@ -302,6 +308,7 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
         kind,
         relatedTo: typeof parsed.relatedTo === 'string' ? parsed.relatedTo : undefined,
         checksum: typeof parsed.checksum === 'string' ? parsed.checksum : undefined,
+        name: typeof parsed.name === 'string' ? parsed.name : undefined,
       };
     } catch {
       // Malformed sidecar — treat as absent; `reserveUpload` rewrites it.
@@ -326,6 +333,7 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
     kind,
     relatedTo,
     checksum,
+    name,
   }: ReserveUploadParams): Promise<string> => {
     const sidecar: Sidecar = {
       version: SIDECAR_VERSION,
@@ -335,6 +343,7 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
       kind,
       relatedTo,
       checksum,
+      name,
     };
 
     // Fast-path rejection for the common case. Not atomic by itself (two concurrent
@@ -388,7 +397,7 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
       await writeSidecar(artifactId, sidecar);
     }
 
-    cacheSet(artifactId, { ext, ready: false, kind, relatedTo, checksum });
+    cacheSet(artifactId, { ext, ready: false, kind, relatedTo, checksum, name });
     // @tus/s3-store uses this as the object key for the multipart upload, so
     // the finished object lands at `<kind>/<artifactId><ext>`.
     return artifactKey(artifactId, kind, ext);
@@ -516,6 +525,11 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
     return meta?.checksum ?? null;
   };
 
+  const getName = async (artifactId: string): Promise<string | null> => {
+    const meta = await loadMeta(artifactId);
+    return meta?.name ?? null;
+  };
+
   const shutdown = async (): Promise<void> => {
     client.destroy();
   };
@@ -533,6 +547,7 @@ export async function createS3Storage(opts: S3StorageOptions): Promise<S3Storage
     getKind,
     getRelatedTo,
     getChecksum,
+    getName,
     shutdown,
   };
 }

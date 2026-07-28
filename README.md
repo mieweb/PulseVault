@@ -536,6 +536,9 @@ The TUS `Upload-Metadata` header is a comma-separated list of `<key> <base64>` p
 | `kind` | No | `video` (default), `project`, or `captions`. Determines the storage subdir and which hooks fire. |
 | `relatedTo` | No | UUID of another artifact this one belongs to (e.g. a video's captions). Lets one capability token authorize a whole session. |
 | `checksum` | No | `<algorithm>:<hex digest>` of the finished file, verified by `createChecksumValidator`/`createS3ChecksumValidator` if configured. |
+| `name` | No | Free-form UTF-8 display title (e.g. the draft name typed on the capture device). Trimmed + length-capped, persisted to the sidecar, and readable via `storage.getName(artifactId)`. Display-only — never used for storage paths or authorization; escape it for your output context. |
+
+> Base64 the **UTF-8 bytes** of each value. `filename`/`kind`/`artifactId` are ASCII, but a free-form `name` can carry accents or emoji — a browser `btoa()` (Latin-1) corrupts those, so encode via `Buffer`/`TextEncoder` (or your platform's UTF-8-safe base64) for the `name` value.
 
 Example (`kind=captions`, linked to a video):
 
@@ -560,7 +563,7 @@ The local adapter writes uploads into flat kind-scoped subdirectories. Downstrea
 
 ```text
 <workspaceRoot>/
-  .pulsevault/<id>.json           # sidecar: { version, ext, filename, status, kind, relatedTo, checksum }
+  .pulsevault/<id>.json           # sidecar: { version, ext, filename, status, kind, relatedTo, checksum, name }
   video/<id><ext>                 # video upload bytes    (kind="video")
   video/<id><ext>.json            # @tus/file-store offset/metadata sidecar
   project/<id><ext>               # project bundle bytes  (kind="project")

@@ -94,6 +94,15 @@ if you've evaluated against an intermediate build.
 
 ### Added
 
+- **`name`** — an optional `Upload-Metadata` key carrying a free-form UTF-8
+  display title for the artifact (e.g. the draft name typed on the capture
+  device). Trimmed and hard-capped server-side (512 chars), persisted to the
+  sidecar alongside `relatedTo`/`checksum`, and exposed via the new optional
+  `getName` storage method (and `ReserveUploadParams.name`). Display-only
+  metadata: it never influences storage paths, routing, or authorization, and
+  consumers must escape it for their own output context. Optional everywhere,
+  so older clients that don't send it and consumers that don't read it are
+  unaffected. Documented in `PROTOCOL.md` §4.1 as a non-normative extension.
 - **`kind: "captions"`** artifact type (default extension `.vtt`), running
   through the same generic `validatePayload`/`onUploadComplete` hooks as
   every other kind. WebVTT carries word-level inline cue timestamps
