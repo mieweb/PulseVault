@@ -297,6 +297,10 @@ app.get("/videos", {
           artifactId,
           kind,
           filename: sidecar.filename ?? tusMeta?.metadata?.filename ?? artifactFile,
+          // Human-facing display title the client sent via `Upload-Metadata.name`
+          // (e.g. the draft name), or null if the upload carried no name. A UI
+          // should escape this — it's free-form, client-supplied text.
+          name: sidecar.name ?? null,
           ext,
           size: artifactStat.size,
           // Session anchor this artifact belongs to (a segment session's clips point at

@@ -101,12 +101,22 @@ export function artifactIdFromUploadId(id: string): string | undefined {
   return isUuid(candidate) ? candidate : undefined;
 }
 
+/**
+ * Defensive upper bound on the stored display `name`. The header is base64 and
+ * comma-joined with the other metadata; a runaway value would bloat every
+ * request and every sidecar. 512 chars is far more than any real title and
+ * still leaves generous headroom under typical proxy header limits. The client
+ * should cap first; this is belt-and-suspenders so the server never trusts it.
+ */
+const MAX_ARTIFACT_NAME_LENGTH = 512;
+
 type ParsedUploadMetadata = {
   artifactId: string;
   filename: string;
   kind: UploadKind;
   relatedTo?: string;
   checksum?: string;
+  name?: string;
 };
 
 /**
@@ -131,8 +141,17 @@ function parseUploadMetadata(
   const rawRelatedTo = (metadata?.relatedTo ?? '').trim();
   const relatedTo = isUuid(rawRelatedTo) ? rawRelatedTo : undefined;
   const checksum = (metadata?.checksum ?? '').trim() || undefined;
+  // Free-form display title. Trim, then hard-cap length so a hostile or buggy
+  // client can't bloat the sidecar; an all-whitespace/empty value is dropped.
+  // Cap by code point (Array.from iterates code points) rather than by
+  // `.slice()`'s UTF-16 units, so a title truncated at the boundary can't be
+  // left with a split surrogate pair (a half-emoji / lone surrogate).
+  const name =
+    Array.from((metadata?.name ?? '').trim())
+      .slice(0, MAX_ARTIFACT_NAME_LENGTH)
+      .join('') || undefined;
 
-  return { artifactId, filename, kind, relatedTo, checksum };
+  return { artifactId, filename, kind, relatedTo, checksum, name };
 }
 
 export function createPulsevaultTusServer(options: PulsevaultTusOptions) {
@@ -152,7 +171,8 @@ export function createPulsevaultTusServer(options: PulsevaultTusOptions) {
     datastore: storage.datastore,
     maxSize,
     namingFunction: async (_req, metadata) => {
-      const { artifactId, filename, kind, relatedTo, checksum } = parseUploadMetadata(metadata);
+      const { artifactId, filename, kind, relatedTo, checksum, name } =
+        parseUploadMetadata(metadata);
 
       if (!isUuid(artifactId)) {
         throw tusError(400, 'Upload-Metadata must include a valid `artifactId` UUID.\n');
@@ -177,7 +197,7 @@ export function createPulsevaultTusServer(options: PulsevaultTusOptions) {
         store.checksum = checksum;
       }
 
-      return storage.reserveUpload({ artifactId, filename, ext, kind, relatedTo, checksum });
+      return storage.reserveUpload({ artifactId, filename, ext, kind, relatedTo, checksum, name });
     },
     // Relative Location (RFC 7231 §7.1.2) so the upload URL is correct behind
     // any TLS-terminating proxy without trusting spoofable X-Forwarded-*
