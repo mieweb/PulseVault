@@ -32,7 +32,8 @@
     "LICENSE",
     "CHANGELOG.md",
     "PROTOCOL.md",
-    "OPERATIONS.md"
+    "OPERATIONS.md",
+    "scripts/web-ready-migrate.mjs"
   ],
   "scripts": {
     "build": "tsc",
