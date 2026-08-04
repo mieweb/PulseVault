@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -151,7 +152,11 @@ function isBinaryAvailable(binPath: string): Promise<boolean> {
 /** Run ffmpeg writing to a sibling tmp file, then atomically replace the original. */
 async function rewriteInPlace(filePath: string, ffmpegPath: string, args: string[]): Promise<void> {
   const dir = path.dirname(filePath);
-  const tmp = path.join(dir, `.webready-${process.pid}-${Date.now()}${path.extname(filePath) || '.mp4'}`);
+  // randomUUID in the name: every video artifact shares one kind directory, so
+  // a pid+timestamp tmp name collides when two uploads finish in the same
+  // millisecond — both ffmpegs would interleave writes into one file and the
+  // winner's rename would install garbage bytes over a real artifact.
+  const tmp = path.join(dir, `.webready-${randomUUID()}${path.extname(filePath) || '.mp4'}`);
   try {
     await execFileAsync(ffmpegPath, ['-y', '-i', filePath, ...args, tmp], {
       // A transcode of a long upload legitimately takes minutes; cap the
@@ -183,6 +188,12 @@ async function rewriteInPlace(filePath: string, ffmpegPath: string, args: string
  * mid-way never corrupts the served artifact. Never throws for pipeline
  * reasons — a failed ffmpeg run resolves to `skipped` with the reason, and the
  * original bytes keep serving.
+ *
+ * NOTE: a rewrite changes the artifact's bytes, so any upload-time checksum
+ * recorded for it (e.g. the local adapter's sidecar `checksum` from
+ * `Upload-Metadata`) describes the ORIGINAL bytes, not the rewritten file.
+ * Consumers verifying bytes against `getChecksum` must treat it as
+ * upload-time provenance, not current-file integrity.
  */
 export async function ensureWebReady(
   filePath: string,

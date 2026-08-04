@@ -219,6 +219,12 @@ A transcode re-encodes the video stream (one-time, quality-preserving at the
 default CRF but not bit-identical). Take a backup first if that matters to
 your deployment (see "Backup and restore" above).
 
+Note on checksums: a remux or transcode changes the artifact's bytes, so an
+upload-time checksum recorded for it (the sidecar `checksum` from
+`Upload-Metadata`) describes the original upload, not the rewritten file.
+Treat `getChecksum` as upload-time provenance rather than current-file
+integrity for artifacts this feature has touched.
+
 ## Retention
 
 `pulsevault` has no built-in retention/expiry feature — this is intentionally

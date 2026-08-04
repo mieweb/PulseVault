@@ -56,10 +56,13 @@ for (const sidecarFile of sidecarFiles) {
   } catch {
     continue; // unreadable sidecar — not this script's problem
   }
-  // Old sidecars predate `kind` and are videos by definition; skip uploads
-  // that never finished (their bytes are still partial).
+  // Old sidecars predate `kind` and are videos by definition. Mirror the
+  // storage adapter's status semantics (src/storage/local.ts): anything that
+  // isn't explicitly "uploading" is ready — legacy sidecars predate `status`
+  // too, and those pre-hook artifacts are exactly what this script exists for.
   const kind = sidecar.kind ?? "video";
-  if (kind !== "video" || sidecar.status !== "ready") continue;
+  const status = sidecar.status === "uploading" ? "uploading" : "ready";
+  if (kind !== "video" || status !== "ready") continue;
 
   const artifactId = path.basename(sidecarFile, ".json");
   const filePath = path.join(root, kind, `${artifactId}${sidecar.ext ?? ".mp4"}`);
