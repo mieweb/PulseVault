@@ -160,6 +160,71 @@ backup time will resume correctly via the normal TUS `HEAD`-then-resume path
 once the client retries, or will simply sit as abandoned partial uploads
 (see "Retention" below) if the client never retries.
 
+## Web-ready playback (faststart remux + H.264 transcode)
+
+Browsers streaming an MP4 over progressive HTTP stall (or fail outright) on
+two things mobile capture pipelines routinely upload:
+
+- **moov atom at the end of the file** — the player must fetch the file's tail
+  before rendering frame one: seconds of startup delay behind Range requests,
+  or a full download in naive players.
+- **HEVC video** — Firefox never decodes it; Chrome usually can't without
+  hardware support.
+
+The `ensureWebReady` helper (exported from the package root) fixes both, in
+place and atomically (tmp file + rename): a lossless sub-second
+`-c copy -movflags +faststart` remux when only the moov position is wrong, and
+a one-time `libx264` transcode (audio stream-copied) when the codec is
+hostile. It is fail-open by design — without `ffmpeg`/`ffprobe` on `PATH` it
+logs one warning and the original bytes keep serving exactly as before.
+
+**Prerequisite:** install ffmpeg on the serving host — `apt install ffmpeg`
+(Debian/Ubuntu), `dnf install ffmpeg` (Fedora/EL + RPM Fusion), or
+`brew install ffmpeg` (macOS). Nothing else changes; the hook detects it at
+first use.
+
+**New uploads** — wire it into `onUploadComplete` (the fastify-demo ships with
+this enabled):
+
+```js
+const storage = createLocalStorage({ workspaceDir: dataDir });
+await app.register(pulseVault, {
+  storage,
+  onUploadComplete: async (_request, { artifactId, kind }) => {
+    if (kind !== "video") return;
+    const localPath = await storage.getLocalPath(artifactId);
+    if (localPath) await ensureWebReady(localPath, { logger: app.log });
+  },
+});
+```
+
+Options: `{ transcode: false }` restricts it to the lossless remux (no CPU
+cost beyond a file rewrite); `crf`/`preset` tune the transcode
+(defaults `23`/`veryfast`); `ffmpegPath`/`ffprobePath` point at binaries off
+`PATH`.
+
+**Existing artifacts** — uploads that landed before the hook existed are fixed
+once with the bundled migration script (idempotent; interrupt and rerun
+freely, already-fixed files are skipped for free):
+
+```sh
+node node_modules/@mieweb/pulsevault/scripts/web-ready-migrate.mjs /path/to/workspaceDir
+# preview without modifying anything:
+node node_modules/@mieweb/pulsevault/scripts/web-ready-migrate.mjs /path/to/workspaceDir --dry-run
+# lossless remux only, never transcode:
+node node_modules/@mieweb/pulsevault/scripts/web-ready-migrate.mjs /path/to/workspaceDir --no-transcode
+```
+
+A transcode re-encodes the video stream (one-time, quality-preserving at the
+default CRF but not bit-identical). Take a backup first if that matters to
+your deployment (see "Backup and restore" above).
+
+Note on checksums: a remux or transcode changes the artifact's bytes, so an
+upload-time checksum recorded for it (the sidecar `checksum` from
+`Upload-Metadata`) describes the original upload, not the rewritten file.
+Treat `getChecksum` as upload-time provenance rather than current-file
+integrity for artifacts this feature has touched.
+
 ## Retention
 
 `pulsevault` has no built-in retention/expiry feature — this is intentionally

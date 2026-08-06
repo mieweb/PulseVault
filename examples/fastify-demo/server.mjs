@@ -21,7 +21,7 @@ import fastifyCompress from "@fastify/compress";
 import fastifyEtag from "@fastify/etag";
 import underPressure from "@fastify/under-pressure";
 import QRCode from "qrcode";
-import pulseVault, { createLocalStorage, buildUploadLink } from "@mieweb/pulsevault";
+import pulseVault, { createLocalStorage, buildUploadLink, ensureWebReady } from "@mieweb/pulsevault";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The route schema says `format: "uuid"` but Fastify's default Ajv doesn't
@@ -386,10 +386,11 @@ app.get("/deeplinks", { schema: { tags: ["demo"], summary: "Mint a pairing deep 
 
 // Mount plugin under /pulsevault so TUS is at POST /pulsevault/upload and
 // artifact GET is at /pulsevault/artifacts/:artifactId. This is the smallest
-// working mount — no authorize, no validatePayload, no hooks.
+// working mount — no authorize, no validatePayload.
+const storage = createLocalStorage({ workspaceDir: dataDir });
 await app.register(pulseVault, {
   prefix: "/pulsevault",
-  storage: createLocalStorage({ workspaceDir: dataDir }),
+  storage,
   // Matches the deployment edge's `client_max_body_size 2G` — advertising more
   // (`Tus-Max-Size`) than the infra accepts means clients get promised sizes
   // that 413 mid-flight. Raise only if the edge limit is raised.
@@ -404,6 +405,23 @@ await app.register(pulseVault, {
     project: [".pulse", ".zip"],
     captions: [".vtt"],
     thumbnail: [".jpg", ".jpeg", ".png"],
+  },
+  // Web-playability backstop: mobile capture pipelines routinely upload MP4s
+  // with the moov atom at the end (seconds of browser stall before frame one)
+  // or HEVC video (undecodable in Firefox and most Chrome). Fix each video
+  // once, right after its final byte lands: a lossless sub-second faststart
+  // remux, or a one-time H.264 transcode when the codec is hostile. Fail-open:
+  // without ffmpeg on PATH this logs one warning and serves the original
+  // bytes, exactly as before. For artifacts uploaded before this hook existed,
+  // run `node scripts/web-ready-migrate.mjs <dataDir>` (see OPERATIONS.md).
+  onUploadComplete: async (_request, { artifactId, kind }) => {
+    if (kind !== "video") return;
+    const localPath = await storage.getLocalPath(artifactId);
+    if (!localPath) return;
+    const result = await ensureWebReady(localPath, { logger: app.log });
+    if (result.action !== "none") {
+      app.log.info({ artifactId, ...result }, "web-ready");
+    }
   },
 });
 
